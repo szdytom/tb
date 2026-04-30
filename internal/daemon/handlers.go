@@ -41,6 +41,8 @@ func (d *Daemon) dispatch(req *ipc.Request) *ipc.Response {
 		return d.handleSearch(req)
 	case ipc.OpCount:
 		return d.handleCount(req)
+	case ipc.OpListBufferSummaries:
+		return d.handleListBufferSummaries(req)
 	default:
 		return ptr(ipc.ErrorResponse(req.ID, fmt.Sprintf("unknown operation: %s", req.Op)))
 	}
@@ -234,6 +236,47 @@ func (d *Daemon) handleCount(req *ipc.Request) *ipc.Response {
 		return ptr(ipc.ErrorResponse(req.ID, err.Error()))
 	}
 	return ptr(ipc.OKResponse(req.ID, ipc.CountResponse{Count: n}))
+}
+
+func (d *Daemon) handleListBufferSummaries(req *ipc.Request) *ipc.Response {
+	var p ipc.ListBuffersPayload
+	if err := json.Unmarshal(req.Payload, &p); err != nil {
+		return ptr(ipc.ErrorResponse(req.ID, fmt.Sprintf("invalid payload: %v", err)))
+	}
+
+	filter := store.ListFilter{
+		Keyword: p.Keyword,
+		Limit:   p.Limit,
+		Offset:  p.Offset,
+		SortAsc: p.SortAsc,
+	}
+	if p.Since != "" {
+		t, err := time.Parse(time.RFC3339, p.Since)
+		if err != nil {
+			return ptr(ipc.ErrorResponse(req.ID, fmt.Sprintf("invalid since: %v", err)))
+		}
+		filter.Since = &t
+	}
+	if p.Until != "" {
+		t, err := time.Parse(time.RFC3339, p.Until)
+		if err != nil {
+			return ptr(ipc.ErrorResponse(req.ID, fmt.Sprintf("invalid until: %v", err)))
+		}
+		filter.Until = &t
+	}
+	switch store.SortField(p.SortBy) {
+	case store.SortByCreatedAt, store.SortByLabel, store.SortByID:
+		filter.SortBy = store.SortField(p.SortBy)
+	default:
+		filter.SortBy = store.SortByUpdatedAt
+	}
+
+	summaries, err := d.repo.ListBufferSummaries(filter)
+	if err != nil {
+		log.Printf("list buffer summaries: %v", err)
+		return ptr(ipc.ErrorResponse(req.ID, err.Error()))
+	}
+	return ptr(ipc.OKResponse(req.ID, summaries))
 }
 
 // ptr returns a pointer to the given value. Needed because dispatch

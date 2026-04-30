@@ -2,6 +2,10 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/szdytom/tb/internal/config"
+	"github.com/szdytom/tb/internal/tui"
 )
 
 var jsonOutput bool
@@ -13,6 +17,9 @@ func newRootCmd() *cobra.Command {
 		Short:         "tmpbuffer — a terminal-based text buffer manager",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTUI()
+		},
 	}
 	cmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
 	return cmd
@@ -32,6 +39,7 @@ func Execute(args []string) int {
 		newPipeCmd(),
 		newDaemonCmd(),
 		newVersionCmd(),
+		newTuiCmd(),
 	)
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
@@ -39,4 +47,32 @@ func Execute(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func runTUI() error {
+	cfg := config.Default()
+	client, err := NewClient(cfg)
+	if err != nil {
+		printError(err.Error())
+		return err
+	}
+	defer client.Close()
+
+	m := tui.New(client)
+	program := tea.NewProgram(m, tea.WithAltScreen())
+	if _, err := program.Run(); err != nil {
+		printError(err.Error())
+		return err
+	}
+	return nil
+}
+
+func newTuiCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "tui",
+		Short: "Launch the interactive TUI",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTUI()
+		},
+	}
 }

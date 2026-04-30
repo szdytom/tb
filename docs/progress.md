@@ -89,3 +89,31 @@ Daemon auto-purge goroutine added as modification to `internal/daemon/daemon.go`
 | Exported `Daemon.Serve()` | `internal/daemon/server.go` | ✅ |
 | Integration tests (18 tests, all pass) | `internal/cli/cli_test.go` | ✅ |
 | Dependency: cobra | `go.mod` | ✅ |
+
+---
+
+## Step 5 — TUI: Basic Layout & Navigation
+
+**Status: COMPLETE**
+
+| Artifact | File | Status |
+|---|---|---|
+| `BufferSummary` type + `NewBufferSummary` | `internal/buffer/model.go` | ✅ |
+| `ListBufferSummaries` (lightweight SQL query) | `internal/store/buffer_repo.go` | ✅ |
+| `OpListBufferSummaries` IPC constant | `internal/ipc/msg.go` | ✅ |
+| Daemon handler + dispatch case | `internal/daemon/handlers.go` | ✅ |
+| `ListBufferSummaries` on `cli.Client` | `internal/cli/client.go` | ✅ |
+| Bubbletea Model, Init, View | `internal/tui/model.go` | ✅ |
+| Update loop + message handlers | `internal/tui/update.go` | ✅ |
+| Buffer list pane (virtual scrolling) | `internal/tui/buffer_list.go` | ✅ |
+| Preview pane (line nums, scroll) | `internal/tui/preview.go` | ✅ |
+| Keybindings (j/k, n, d, :q, ?, g/G, PgUp/Dn) | `internal/tui/keymap.go` | ✅ |
+| Help overlay | `internal/tui/help.go` | ✅ |
+| Root command RunE → TUI (default) | `internal/cli/root.go` | ✅ |
+| `tb tui` subcommand | `internal/cli/root.go` | ✅ |
+| TUI ↔ daemon interface (no import cycle) | `internal/tui/model.go` (`Client` interface) | ✅ |
+| Dependencies: bubbletea, bubbles, lipgloss | `go.mod` | ✅ |
+
+### AC Status
+- **AC-1** (instant buffer creation via `n`): ✅ — `CreateBuffer` IPC, prepends to list, selects new buffer
+- **AC-7** (200ms startup with 10k buffers): ✅ — `BufferSummary` avoids loading full content; virtual scrolling renders only visible range

@@ -19,6 +19,7 @@ const (
 	OpRestoreFromTrash  Op = "RestoreFromTrash"
 	OpSearch            Op = "Search"
 	OpCount             Op = "Count"
+	OpListBufferSummaries Op = "ListBufferSummaries"
 )
 
 // Request is sent from a client to the daemon.

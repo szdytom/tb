@@ -61,3 +61,37 @@ func ComputeMetadata(content string) Metadata {
 		ByteCount: len(content),
 	}
 }
+
+// BufferSummary is a lightweight buffer representation without the full Content.
+// Used by the TUI list view for fast loading of many buffers.
+type BufferSummary struct {
+	ID        int64     `json:"id"`
+	Label     string    `json:"label,omitempty"`
+	Preview   string    `json:"preview"`
+	LineCount int       `json:"line_count"`
+	ByteCount int       `json:"byte_count"`
+	Tags      []string  `json:"tags,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// NewBufferSummary creates a BufferSummary from a Buffer.
+func NewBufferSummary(b *Buffer) BufferSummary {
+	preview := b.Content
+	if idx := strings.IndexByte(b.Content, '\n'); idx >= 0 {
+		preview = b.Content[:idx]
+	}
+	if len(preview) > 80 {
+		preview = preview[:80] + "..."
+	}
+	return BufferSummary{
+		ID:        b.ID,
+		Label:     b.Label,
+		Preview:   preview,
+		LineCount: b.Metadata.LineCount,
+		ByteCount: b.Metadata.ByteCount,
+		Tags:      b.Tags,
+		CreatedAt: b.CreatedAt,
+		UpdatedAt: b.UpdatedAt,
+	}
+}

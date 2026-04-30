@@ -122,6 +122,88 @@ func (r *Repository) List(filter ListFilter) ([]*buffer.Buffer, error) {
 	return bufs, rows.Err()
 }
 
+// ListBufferSummaries returns light-weight summaries (no full content) for active buffers.
+func (r *Repository) ListBufferSummaries(filter ListFilter) ([]buffer.BufferSummary, error) {
+	query := `
+		SELECT id, label, SUBSTR(content, 1, 80) AS preview,
+		       line_count, byte_count, tags, created_at, updated_at
+		FROM buffers WHERE trash_status = ?`
+	args := []interface{}{buffer.TrashStatusActive}
+
+	if filter.Keyword != "" {
+		query += ` AND (content LIKE '%' || ? || '%' OR label LIKE '%' || ? || '%')`
+		args = append(args, filter.Keyword, filter.Keyword)
+	}
+	if filter.Since != nil {
+		query += ` AND updated_at >= ?`
+		args = append(args, filter.Since.Format(time.RFC3339))
+	}
+	if filter.Until != nil {
+		query += ` AND updated_at <= ?`
+		args = append(args, filter.Until.Format(time.RFC3339))
+	}
+
+	sortBy := SortByUpdatedAt
+	switch filter.SortBy {
+	case SortByCreatedAt, SortByLabel, SortByID, SortByUpdatedAt:
+		sortBy = filter.SortBy
+	}
+	order := "DESC"
+	if filter.SortAsc {
+		order = "ASC"
+	}
+	query += fmt.Sprintf(" ORDER BY %s %s", sortBy, order)
+
+	if filter.Limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, filter.Limit)
+	}
+	if filter.Offset > 0 {
+		query += ` OFFSET ?`
+		args = append(args, filter.Offset)
+	}
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list buffer summaries: %w", err)
+	}
+	defer rows.Close()
+
+	var summaries []buffer.BufferSummary
+	for rows.Next() {
+		var (
+			id, lineCount, byteCount int
+			label, preview, tags     string
+			createdAt, updatedAt     string
+		)
+		if err := rows.Scan(&id, &label, &preview, &lineCount, &byteCount, &tags, &createdAt, &updatedAt); err != nil {
+			return nil, err
+		}
+		s := buffer.BufferSummary{
+			ID:        int64(id),
+			Label:     label,
+			Preview:   preview,
+			LineCount: lineCount,
+			ByteCount: byteCount,
+			Tags:      splitTags(tags),
+		}
+		if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+			s.CreatedAt = t
+		}
+		if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
+			s.UpdatedAt = t
+		}
+		summaries = append(summaries, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if summaries == nil {
+		summaries = []buffer.BufferSummary{}
+	}
+	return summaries, nil
+}
+
 // UpdateContent replaces the content of a buffer and recomputes metadata.
 func (r *Repository) UpdateContent(id int64, content string) error {
 	meta := buffer.ComputeMetadata(content)

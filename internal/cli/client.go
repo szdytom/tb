@@ -102,6 +102,19 @@ func (c *Client) ListBuffers(payload ipc.ListBuffersPayload) ([]*buffer.Buffer, 
 	return bufs, nil
 }
 
+// ListBufferSummaries returns light-weight buffer summaries for the TUI list view.
+func (c *Client) ListBufferSummaries(payload ipc.ListBuffersPayload) ([]buffer.BufferSummary, error) {
+	resp, err := c.do(ipc.OpListBufferSummaries, payload)
+	if err != nil {
+		return nil, err
+	}
+	var summaries []buffer.BufferSummary
+	if err := resp.UnmarshalPayload(&summaries); err != nil {
+		return nil, fmt.Errorf("decode list summaries response: %w", err)
+	}
+	return summaries, nil
+}
+
 // UpdateContent replaces a buffer's content.
 func (c *Client) UpdateContent(id int64, content string) error {
 	_, err := c.do(ipc.OpUpdateContent, ipc.UpdateContentPayload{
