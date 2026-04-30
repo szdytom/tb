@@ -44,3 +44,20 @@ Remaining: `cmd/tb/main.go` is a stub (just prints error — proper CLI comes in
 
 Daemon auto-purge goroutine added as modification to `internal/daemon/daemon.go` (trash expiration cleanup).
 
+---
+
+## Step 3 — IPC Protocol & Daemon Server Loop
+
+**Status: COMPLETE**
+
+| Artifact | File | Status |
+|---|---|---|
+| Request/Response types, Op constants, payload structs | `internal/ipc/msg.go` | ✅ |
+| Conn wrapper with Send/Receive/Dial | `internal/ipc/conn.go` | ✅ |
+| UDS listener, accept loop, per-connection goroutine | `internal/daemon/server.go` | ✅ |
+| Request dispatch (Op → store.* mapping) | `internal/daemon/handlers.go` | ✅ |
+| Client-side autostart (dial or fork daemon) | `internal/daemon/autostart.go` | ✅ |
+| Daemon struct extended (listener, WaitGroup) | `internal/daemon/daemon.go` | ✅ |
+| Message serialization tests | `internal/ipc/msg_test.go` | ✅ |
+| Conn IO tests | `internal/ipc/conn_test.go` | ✅ |
+| Integration tests (all 13 operations) | `internal/daemon/handlers_test.go` | ✅ |

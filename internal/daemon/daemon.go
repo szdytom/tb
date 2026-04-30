@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +20,8 @@ type Daemon struct {
 	repo *store.Repository
 	db   *store.DB
 	cfg  *config.Config
+	ln   net.Listener
+	wg   sync.WaitGroup
 }
 
 // New creates a Daemon, opening the database and running migrations.
@@ -38,6 +42,10 @@ func (d *Daemon) Run() error {
 
 	go d.autoPurgeLoop(ctx)
 
+	if err := d.serve(); err != nil {
+		return fmt.Errorf("serve: %w", err)
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
@@ -51,12 +59,21 @@ func (d *Daemon) Run() error {
 // Shutdown performs a graceful stop.
 func (d *Daemon) Shutdown() error {
 	log.Print("shutting down daemon")
+
+	if d.ln != nil {
+		d.ln.Close()
+	}
+	d.wg.Wait()
+
+	if d.cfg.SocketPath != "" {
+		os.Remove(d.cfg.SocketPath)
+	}
+
 	return d.db.Close()
 }
 
 // autoPurgeLoop periodically removes trashed buffers whose TTL has expired.
 func (d *Daemon) autoPurgeLoop(ctx context.Context) {
-	// Run once immediately on start.
 	d.purgeExpiredTrash()
 	d.db.Checkpoint()
 
