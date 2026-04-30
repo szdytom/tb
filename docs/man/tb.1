@@ -1,0 +1,284 @@
+.\" Automatically generated from tb source; do not edit manually.
+.Dd April 30, 2026
+.Dt TB 1
+.Os
+.Sh NAME
+.Nm tb
+.Nd tmpbuffer -- a terminal-based text buffer manager
+.Sh SYNOPSIS
+.Nm
+.Op Fl -json
+.Ar command
+.Op Ar args ...
+.Pp
+.Nm
+.Ar add
+.Op Fl -text Ar string
+.Op Fl -label Ar name
+.Op Fl -tag Ar tags
+.Pp
+.Nm
+.Ar list
+.Op Fl -filter Ar keyword
+.Op Fl -regex Ar pattern
+.Op Fl -since Ar timestamp
+.Op Fl -until Ar timestamp
+.Op Fl -limit Ar n
+.Pp
+.Nm
+.Ar get
+.Ar id
+.Pp
+.Nm
+.Ar search
+.Op Fl -regex
+.Ar query
+.Pp
+.Nm
+.Ar edit
+.Op Fl -editor Ar cmd
+.Ar id
+.Pp
+.Nm
+.Ar rm
+.Op Fl -permanent
+.Ar id
+.Pp
+.Nm
+.Ar pipe
+.Fl -command Ar shell_cmd
+.Op Fl -new
+.Ar id
+.Pp
+.Nm
+.Ar daemon
+.Ar start
+| stop | status
+.Pp
+.Nm
+.Ar version
+.Sh DESCRIPTION
+.Nm
+manages a collection of transient text buffers ("scratchpads") with
+persistent history, full-text search, and shell integration.
+It stores all data in a SQLite database owned by a background daemon
+and exposes operations through both a CLI and a TUI.
+.Pp
+Bold text is used to denote commands and flags, and emphasis for file paths.
+.Pp
+On first invocation,
+.Nm
+automatically starts the daemon if it is not already running.
+The daemon listens on a Unix domain socket
+.Pq Pa $XDG_RUNTIME_DIR/tmpbuffer.sock
+and serialises all writes to the SQLite database, ensuring consistency
+between concurrent CLI and TUI sessions.
+.Sh COMMANDS
+.Bl -tag -width Ds
+.It Xo
+.Ic add
+.Op Fl -text Ar string
+.Op Fl -label Ar name
+.Op Fl -tag Ar tags
+.Xc
+Create a new buffer.
+The content can come from stdin (if piped),
+.Fl Fl text ,
+or an empty buffer is created if neither is given.
+.Bl -tag -width "-label"
+.It Fl -text Ar string , Fl T Ar string
+Content as a command-line argument.
+.It Fl -label Ar name , Fl l Ar name
+A human-readable label assigned to the new buffer.
+.It Fl -tag Ar tags , Fl t Ar tags
+Comma-separated list of tags.
+.El
+.Pp
+On success, prints the new buffer ID to stdout.
+.It Xo
+.Ic list
+.Op Fl -filter Ar keyword
+.Op Fl -regex Ar pattern
+.Op Fl -since Ar timestamp
+.Op Fl -until Ar timestamp
+.Op Fl -limit Ar n
+.Xc
+List all active buffers in a table with columns: ID, label, first-line
+preview, and last-updated timestamp.
+.Bl -tag -width "-filter"
+.It Fl -filter Ar keyword , Fl f Ar keyword
+Show only buffers whose content matches the given keyword (literal match).
+.It Fl -regex Ar pattern
+Show only buffers whose content matches the regular expression.
+.It Fl -since Ar timestamp , Fl s Ar timestamp
+Only buffers updated after the given RFC 3339 timestamp.
+.It Fl -until Ar timestamp , Fl u Ar timestamp
+Only buffers updated before the given RFC 3339 timestamp.
+.It Fl -limit Ar n , Fl n Ar n
+Maximum number of results (0 means no limit).
+.El
+.It Xo
+.Ic get
+.Ar id
+.Xc
+Print the full content of the buffer identified by
+.Ar id
+to stdout.
+.Pp
+Exits with 0 on success, non-zero if the ID does not exist.
+.It Xo
+.Ic search
+.Op Fl -regex
+.Ar query
+.Xc
+Full-text search across all buffers.
+Prints matching buffer IDs with their labels and a snippet of the match.
+.Bl -tag -width "-regex"
+.It Fl -regex , Fl r
+Treat the query as a regular expression.
+.El
+.It Xo
+.Ic edit
+.Op Fl -editor Ar cmd
+.Ar id
+.Xc
+Open a buffer in an external editor.
+The daemon writes the buffer content to a temporary file, launches
+the editor, and waits for it to exit. On exit, the modified content
+is read back and persisted.
+.Pp
+If the editor exits with a non-zero code, the user is prompted whether
+to keep or discard the changes.
+.Bl -tag -width "-editor"
+.It Fl -editor Ar cmd , Fl e Ar cmd
+Editor command to use (overrides
+.Ev EDITOR
+environment variable).
+.El
+.Pp
+If neither
+.Fl Fl editor
+nor
+.Ev EDITOR
+is set,
+.Xr vi 1
+is used as the default.
+.It Xo
+.Ic rm
+.Op Fl -permanent
+.Ar id
+.Xc
+Delete a buffer.
+By default the buffer is moved to the trash (soft delete), where it
+remains for a configurable retention period before being permanently
+removed.
+.Bl -tag -width "-permanent"
+.It Fl -permanent , Fl P
+Skip the trash and remove the buffer immediately.
+.El
+.It Xo
+.Ic pipe
+.Fl -command Ar shell_cmd
+.Op Fl -new
+.Ar id
+.Xc
+Pipe the content of an existing buffer to a shell command and capture
+its stdout.
+.Bl -tag -width "-command"
+.It Fl -command Ar cmd , Fl c Ar cmd
+The shell command to run (passed to
+.Xr sh 1 Fl c ) .
+This flag is required.
+.It Fl -new , Fl n
+Create a new buffer with the command output instead of replacing the
+original buffer's content. The new buffer inherits the original label
+with " (piped)" appended.
+.El
+.Pp
+If the command exits non-zero or produces no output, an error is
+displayed and the buffer is not modified.
+.It Ic daemon
+Manage the background daemon process.
+.Bl -tag -width "status"
+.It Ic start
+Start the daemon process.
+No-op if already running.
+.It Ic stop
+Stop the daemon by sending SIGINT.
+.It Ic status
+Check whether the daemon is running and print its PID.
+.El
+.It Ic version
+Print the version string.
+.El
+.Sh GLOBAL OPTIONS
+.Bl -tag -width Fl
+.It Fl -json
+Output results in JSON format.
+Supported by
+.Ic add ,
+.Ic get ,
+.Ic list ,
+.Ic search ,
+and
+.Ic pipe .
+.El
+.Sh ENVIRONMENT
+.Bl -tag -width "XDG_DATA_HOME"
+.It Ev EDITOR
+The external editor command used by
+.Ic edit .
+If not set,
+.Xr vi 1
+is used.
+.It Ev XDG_DATA_HOME
+Base directory for the SQLite database.
+Default:
+.Pa $HOME/.local/share .
+.It Ev XDG_CONFIG_HOME
+Base directory for configuration files.
+Default:
+.Pa $HOME/.config .
+.It Ev XDG_RUNTIME_DIR
+Base directory for the Unix domain socket and PID file.
+Default:
+.Pa $HOME/.local/state .
+.It Ev XDG_STATE_HOME
+Fallback for
+.Ev XDG_RUNTIME_DIR
+when the latter is not set.
+Default:
+.Pa $HOME/.local/state .
+.El
+.Sh FILES
+.Bl -tag -width "tmpbuffer.sock"
+.It Pa $XDG_DATA_HOME/tmpbuffer/tmpbuffer.db
+SQLite database containing all buffers, metadata, and tags.
+Created automatically on first daemon start.
+.It Pa $XDG_RUNTIME_DIR/tmpbuffer.sock
+Unix domain socket for CLI-to-daemon communication.
+.It Pa $XDG_RUNTIME_DIR/tmpbuffer.pid
+PID file recording the daemon process ID.
+Used by
+.Ic daemon stop .
+.El
+.Sh EXIT STATUS
+.Ex -std
+Additionally:
+.Bl -tag -width 2n -compact
+.It 0
+Command succeeded.
+.It 1
+An error occurred (command not found, daemon unreachable, etc.).
+.El
+.Sh BUGS
+Last-write-wins on concurrent edits; no merge logic.
+.Pp
+The daemon must be stopped explicitly with
+.Ic daemon stop ;
+killing the terminal does not terminate it.
+.Sh SEE ALSO
+.Xr sh 1 ,
+.Xr vi 1
+.Pp
+Project repository: https://github.com/szdytom/tb
