@@ -45,3 +45,9 @@ func Open(path string) (*DB, error) {
 func (db *DB) Close() error {
 	return db.DB.Close()
 }
+
+// Checkpoint triggers a WAL checkpoint to control WAL file growth.
+func (db *DB) Checkpoint() error {
+	_, err := db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	return err
+}
