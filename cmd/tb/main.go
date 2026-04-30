@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/szdytom/tb/internal/cli"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "tb: client commands not yet implemented (use tmpbufferd)")
-	os.Exit(1)
+	os.Exit(cli.Execute(os.Args[1:]))
 }

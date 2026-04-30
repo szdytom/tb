@@ -10,8 +10,9 @@ import (
 	"github.com/szdytom/tb/internal/ipc"
 )
 
-// serve binds the UDS, sets permissions, and starts the accept loop.
-func (d *Daemon) serve() error {
+// Serve binds the UDS, sets permissions, and starts the accept loop.
+// It is called by Run() and may also be called directly for testing.
+func (d *Daemon) Serve() error {
 	// Remove stale socket file from previous run.
 	os.Remove(d.cfg.SocketPath)
 

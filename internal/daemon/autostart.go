@@ -22,7 +22,7 @@ func Autostart(cfg *config.Config) (*ipc.Conn, error) {
 		return conn, nil
 	}
 
-	daemonPath, err := findDaemonBinary()
+	daemonPath, err := FindDaemonBinary()
 	if err != nil {
 		return nil, fmt.Errorf("daemon not running and cannot find tmpbufferd binary: %w", err)
 	}
@@ -42,9 +42,9 @@ func Autostart(cfg *config.Config) (*ipc.Conn, error) {
 	return conn, nil
 }
 
-// findDaemonBinary locates the tmpbufferd binary, checking PATH first,
+// FindDaemonBinary locates the tmpbufferd binary, checking PATH first,
 // then the directory containing the current executable.
-func findDaemonBinary() (string, error) {
+func FindDaemonBinary() (string, error) {
 	if path, err := exec.LookPath("tmpbufferd"); err == nil {
 		return path, nil
 	}

@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -37,12 +39,16 @@ func New(cfg *config.Config) (*Daemon, error) {
 func (d *Daemon) Run() error {
 	log.Printf("tmpbuffer daemon started (pid=%d db=%s)", os.Getpid(), d.cfg.DBPath)
 
+	if err := d.WritePidFile(); err != nil {
+		log.Printf("write pid file: %v", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go d.autoPurgeLoop(ctx)
 
-	if err := d.serve(); err != nil {
+	if err := d.Serve(); err != nil {
 		return fmt.Errorf("serve: %w", err)
 	}
 
@@ -59,6 +65,8 @@ func (d *Daemon) Run() error {
 // Shutdown performs a graceful stop.
 func (d *Daemon) Shutdown() error {
 	log.Print("shutting down daemon")
+
+	d.RemovePidFile()
 
 	if d.ln != nil {
 		d.ln.Close()
@@ -100,4 +108,18 @@ func (d *Daemon) purgeExpiredTrash() {
 	if n > 0 {
 		log.Printf("auto-purge: removed %d expired trash entries", n)
 	}
+}
+
+// WritePidFile writes the daemon's PID to the configured PID file path.
+func (d *Daemon) WritePidFile() error {
+	dir := filepath.Dir(d.cfg.PidFilePath())
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	return os.WriteFile(d.cfg.PidFilePath(), []byte(strconv.Itoa(os.Getpid())), 0600)
+}
+
+// RemovePidFile deletes the PID file. Errors are silently ignored.
+func (d *Daemon) RemovePidFile() {
+	os.Remove(d.cfg.PidFilePath())
 }

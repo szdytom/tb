@@ -21,7 +21,7 @@ Tests: ✅ all pass (`go test ./...`)
 | Config struct with defaults | `internal/config/config.go` | ✅ |
 | Daemon start/stop skeleton | `internal/daemon/daemon.go` | ✅ |
 
-Remaining: `cmd/tb/main.go` is a stub (just prints error — proper CLI comes in Step 4).
+
 
 ---
 
@@ -61,3 +61,31 @@ Daemon auto-purge goroutine added as modification to `internal/daemon/daemon.go`
 | Message serialization tests | `internal/ipc/msg_test.go` | ✅ |
 | Conn IO tests | `internal/ipc/conn_test.go` | ✅ |
 | Integration tests (all 13 operations) | `internal/daemon/handlers_test.go` | ✅ |
+
+---
+
+## Step 4 — CLI Command Tree (All Commands)
+
+**Status: COMPLETE**
+
+| Artifact | File | Status |
+|---|---|---|
+| IPC client wrapper (13 typed methods) | `internal/cli/client.go` | ✅ |
+| Cobra root command + Execute entry point | `internal/cli/root.go` | ✅ |
+| Output formatting helpers | `internal/cli/output.go` | ✅ |
+| `tb add` — stdin/--text/--label/--tag | `internal/cli/add.go` | ✅ |
+| `tb list` — filter/regex/since/until/limit/json | `internal/cli/list.go` | ✅ |
+| `tb get <id>` | `internal/cli/get.go` | ✅ |
+| `tb search <query>` — regex/json | `internal/cli/search.go` | ✅ |
+| `tb edit <id>` — $EDITOR integration, exit-code handling | `internal/cli/edit.go` | ✅ |
+| `tb rm <id>` — soft delete / --permanent | `internal/cli/rm.go` | ✅ |
+| `tb pipe <id> --command` — pipe/new | `internal/cli/pipe.go` | ✅ |
+| `tb daemon {start|stop|status}` | `internal/cli/daemon.go` | ✅ |
+| `tb version` | `internal/cli/version.go` | ✅ |
+| `cmd/tb/main.go` — wired to cli.Execute | `cmd/tb/main.go` | ✅ |
+| PID file support in daemon | `internal/daemon/daemon.go` | ✅ |
+| `PidFilePath()` on Config | `internal/config/config.go` | ✅ |
+| Exported `FindDaemonBinary` | `internal/daemon/autostart.go` | ✅ |
+| Exported `Daemon.Serve()` | `internal/daemon/server.go` | ✅ |
+| Integration tests (18 tests, all pass) | `internal/cli/cli_test.go` | ✅ |
+| Dependency: cobra | `go.mod` | ✅ |

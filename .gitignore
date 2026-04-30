@@ -2,4 +2,6 @@
 CLAUDE.local.md
 .vscode/
 *.swp
+/tb
+/tmpbufferd
 

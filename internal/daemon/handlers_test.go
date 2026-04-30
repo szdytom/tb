@@ -34,7 +34,7 @@ func setupTestDaemon(t *testing.T) (*Daemon, *ipc.Conn, func()) {
 		t.Fatalf("new daemon: %v", err)
 	}
 
-	if err := d.serve(); err != nil {
+	if err := d.Serve(); err != nil {
 		d.Shutdown()
 		os.RemoveAll(dir)
 		t.Fatalf("serve: %v", err)
