@@ -5,6 +5,11 @@ import (
 	"path/filepath"
 )
 
+const (
+	TimeFormatRelative = iota
+	TimeFormatAbsolute
+)
+
 // Config holds all configuration for tmpbuffer.
 type Config struct {
 	DataDir        string
@@ -14,9 +19,23 @@ type Config struct {
 	SocketPath     string
 	Editor         string
 	PreviewCommand string
+	TimeFormat     int
+}
+
+func timeFormatFromString(s string) int {
+	switch s {
+	case "relative":
+		return TimeFormatRelative
+	case "absolute":
+		return TimeFormatAbsolute
+	default:
+		return TimeFormatRelative
+	}
 }
 
 // Default returns a Config populated from XDG conventions and environment.
+// TODO: cache this since it's used in multiple places and doesn't change at runtime.
+// TODO: load additional config from a file
 func Default() *Config {
 	return &Config{
 		DataDir:        DataDir(),
@@ -26,6 +45,7 @@ func Default() *Config {
 		SocketPath:     filepath.Join(SocketDir(), "tmpbuffer.sock"),
 		Editor:         os.Getenv("EDITOR"),
 		PreviewCommand: os.Getenv("TB_PREVIEW_CMD"),
+		TimeFormat:     timeFormatFromString(os.Getenv("TB_TIME_FORMAT")),
 	}
 }
 

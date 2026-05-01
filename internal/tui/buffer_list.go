@@ -6,6 +6,7 @@ import (
 
 	"git.sr.ht/~rockorager/vaxis"
 	"github.com/szdytom/tb/internal/buffer"
+	"github.com/szdytom/tb/internal/config"
 )
 
 // DrawList renders the buffer list into a vaxis window.
@@ -57,9 +58,9 @@ func DrawList(win vaxis.Window, summaries []buffer.BufferSummary, cursor, listOf
 
 		var line string
 		if s.Label != "" {
-			line = fmt.Sprintf("#%-5d  %-6s  %s  %s", s.ID, relativeTime(s.UpdatedAt), preview, s.Label)
+			line = fmt.Sprintf("#%-5d  %-6s  %s  %s", s.ID, displayTime(s.UpdatedAt), preview, s.Label)
 		} else {
-			line = fmt.Sprintf("#%-5d  %-6s  %s", s.ID, relativeTime(s.UpdatedAt), preview)
+			line = fmt.Sprintf("#%-5d  %-6s  %s", s.ID, displayTime(s.UpdatedAt), preview)
 		}
 
 		style := vaxis.Style{}
@@ -70,6 +71,14 @@ func DrawList(win vaxis.Window, summaries []buffer.BufferSummary, cursor, listOf
 		win.PrintTruncate(row, vaxis.Segment{Text: line, Style: style})
 		row++
 	}
+}
+
+func displayTime(t time.Time) string {
+	cfg := config.Default()
+	if cfg.TimeFormat == config.TimeFormatAbsolute {
+		return absoluteTime(t)
+	}
+	return relativeTime(t)
 }
 
 func relativeTime(t time.Time) string {
@@ -86,4 +95,13 @@ func relativeTime(t time.Time) string {
 	default:
 		return t.Format("01-02")
 	}
+}
+
+func absoluteTime(t time.Time) string {
+	d := time.Since(t)
+	// Format: if within 24h, show time; else show date
+	if d < 24*time.Hour {
+		return t.Format("15:04")
+	}
+	return t.Format("01-02")
 }
