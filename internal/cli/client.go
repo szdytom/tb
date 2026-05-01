@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/szdytom/tb/internal/buffer"
 	"github.com/szdytom/tb/internal/config"
@@ -12,6 +13,7 @@ import (
 
 // Client wraps an IPC connection to the daemon with typed convenience methods.
 type Client struct {
+	mu     sync.Mutex
 	conn   *ipc.Conn
 	nextID int64
 }
@@ -31,6 +33,9 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) do(op ipc.Op, payload interface{}) (ipc.Response, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	req := ipc.NewRequest(c.nextID, op, payload)
 	c.nextID++
 	if err := c.conn.Send(req); err != nil {

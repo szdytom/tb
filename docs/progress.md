@@ -171,3 +171,31 @@ Daemon auto-purge goroutine added as modification to `internal/daemon/daemon.go`
 - `allSummaries` cached so Escape clears instantly without daemon round-trip
 - `searchGen` incremented on exit to invalidate in-flight goroutines
 - Create/delete while filtered updates `allSummaries` and re-triggers search
+
+---
+
+## Step 7 — External Editor Integration (PTY Tab)
+
+**Status: COMPLETE**
+
+| Artifact | File | Status |
+|---|---|---|
+| Editor resolution, temp file creation, command building | `internal/editor/editor.go` | ✅ |
+| `EditorTab` struct wrapping `term.Model` for PTY editor | `internal/tui/edit_tab.go` | ✅ |
+| Tab bar rendering (list + editor tabs) | `internal/tui/tab.go` | ✅ |
+| Multi-tab tracking, tab-aware draw/event dispatch | `internal/tui/app.go` | ✅ |
+| Editor lifecycle events (`editorStarted`, `editorExited`) | `internal/tui/update.go` | ✅ |
+| Non-zero exit confirmation dialog | `internal/tui/update.go` | ✅ |
+| Tab switch keybindings (Tab, Shift+Tab, Alt+&lt;n&gt;) | `internal/tui/keymap.go` | ✅ |
+| Help overlay updated with tab/editor entries | `internal/tui/help.go` | ✅ |
+| `UpdateContent` added to TUI `Client` interface | `internal/tui/app.go` | ✅ |
+| Editor command passed from config through to TUI | `internal/cli/root.go` | ✅ |
+
+**Key design decisions:**
+- Deferred-start pattern (aerc-style): `EditorTab.Start()` called on first `Draw()` with real window dimensions
+- `EditorTab.onExit` callback posts `editorExited` event to vaxis event loop for thread-safe state mutation
+- Zero exit code → auto-save and close tab; non-zero → prompt user with `stateEditorExitConfirm`
+- Tab index tracked separately from editor tab slice; `handleTabSwitch` intercepted at `handleKey()` level before mode dispatch
+- `updateTabFocus()` calls `Focus()`/`Blur()` on editor `term.Model` for PTY focus notifications
+- All editor tabs closed on quit; `Ctrl+C` in editor tab forwarded to PTY (SIGINT to editor), not intercepted
+- Tab bar drawn at row 0 (replaces old top bar); content area unchanged

@@ -6,16 +6,21 @@ import (
 
 func DrawHelp(root vaxis.Window, screenW, screenH int) {
 	lines := []string{
-		" j / Up        Move selection up",
-		" k / Down      Move selection down",
-		" PgUp / PgDn   Page up / down",
-		" g / G         Top / bottom",
-		" Enter         Open in editor",
-		" n             New buffer",
-		" d             Delete buffer",
-		" /             Search",
-		" :q / Ctrl+C   Quit",
-		" ?             Toggle help",
+		" j / Up          Move selection up",
+		" k / Down        Move selection down",
+		" PgUp / PgDn     Page up / down",
+		" g / G           Top / bottom",
+		" Enter           Open in editor",
+		" n               New buffer",
+		" d               Delete buffer",
+		" /               Search",
+		" C-b <n>         Switch tab (1:list, 2-9:editor)",
+		"   C-b 1         List tab",
+		"   C-b 2-9       Editor tabs",
+		"   C-b n         New buffer",
+		"   C-b q         Quit",
+		" :q / Ctrl+C     Quit",
+		" ?               Toggle help",
 	}
 
 	contentW := 0

@@ -7,6 +7,7 @@ import (
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/widgets/textinput"
 	"github.com/szdytom/tb/internal/buffer"
+	"github.com/szdytom/tb/internal/editor"
 	"github.com/szdytom/tb/internal/ipc"
 	"github.com/szdytom/tb/internal/store"
 )
@@ -34,6 +35,7 @@ const (
 	stateConfirmDelete
 	stateSearch
 	stateHelp
+	stateEditorExitConfirm
 	stateQuitting
 )
 
@@ -42,6 +44,7 @@ type Client interface {
 	ListBufferSummaries(payload ipc.ListBuffersPayload) ([]buffer.BufferSummary, error)
 	GetBuffer(id int64) (*buffer.Buffer, error)
 	CreateBuffer(content, label string, tags []string) (int64, error)
+	UpdateContent(id int64, content string) error
 	SoftDelete(id int64, ttlSeconds int) error
 	Search(query string, isRegex bool) ([]store.SearchResult, error)
 	Close() error
@@ -78,7 +81,7 @@ type App struct {
 	searchQuery       string // saved after commit, shown in status bar
 	searchTimer       *time.Timer
 	searchGen         int
-	savedSearchQuery  string // filter that was active when search was entered
+	savedSearchQuery  string                 // filter that was active when search was entered
 	savedSearchFilter []buffer.BufferSummary // summaries when search was entered
 
 	// Confirm delete
@@ -87,6 +90,20 @@ type App struct {
 	// Preview command (e.g. "bat --color=always --style=plain")
 	previewCmd string
 
+	// Tab management
+	editorTabs []*EditorTab
+	currentTab int // 0 = list tab, 1+ = editor tab
+
+	// Editor command (resolved once at startup)
+	editorCmd string
+
+	// Editor exit confirmation state (non-zero exit)
+	confirmExitTabIdx int
+	confirmExitCode   int
+
+	// Leader key state (tmux-style prefix for editor tab commands)
+	leaderPending bool
+
 	// Misc
 	awaitingColon bool
 	errMsg        string
@@ -94,10 +111,11 @@ type App struct {
 	quitting      bool
 }
 
-func New(client Client, previewCmd string) *App {
+func New(client Client, previewCmd, editorCmd string) *App {
 	return &App{
 		client:      client,
 		previewCmd:  previewCmd,
+		editorCmd:   editor.Resolve(editorCmd),
 		textPreview: NewTextPreview(),
 		vtPreview:   NewVTPreview(),
 		summaries:   []buffer.BufferSummary{},
@@ -138,6 +156,10 @@ func (a *App) Run() error {
 
 	// Cleanup
 	a.vtPreview.Close()
+	for _, tab := range a.editorTabs {
+		tab.Close()
+	}
+	a.editorTabs = nil
 
 	return nil
 }
@@ -166,6 +188,9 @@ func (a *App) recalcLayout() {
 	if a.vtActive {
 		a.vtPreview.Resize(a.previewW, a.contentH)
 	}
+	for _, tab := range a.editorTabs {
+		tab.Resize(a.width, a.contentH)
+	}
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────
@@ -177,10 +202,18 @@ func (a *App) draw() {
 	switch a.curState {
 	case stateLoading:
 		a.drawLoading(root)
-	case stateBrowsing, stateSearch, stateConfirmDelete, stateHelp:
-		a.drawMainView(root)
+	case stateBrowsing, stateSearch, stateConfirmDelete, stateHelp, stateEditorExitConfirm:
+		a.drawTabBar(root)
+		if a.currentTab == 0 {
+			a.drawMainView(root)
+		} else {
+			a.drawEditorContent(root)
+		}
 		if a.curState == stateHelp {
 			DrawHelp(root, a.width, a.contentH)
+		}
+		if a.curState == stateEditorExitConfirm {
+			a.drawEditorExitConfirm(root)
 		}
 	case stateQuitting:
 		// Nothing to draw
@@ -197,13 +230,6 @@ func (a *App) drawLoading(root vaxis.Window) {
 }
 
 func (a *App) drawMainView(root vaxis.Window) {
-	// Top bar
-	topBar := root.New(0, 0, a.width, 1)
-	topBar.PrintTruncate(0, vaxis.Segment{
-		Text:  " tb - tmpbuffer ",
-		Style: topBarStyle,
-	})
-
 	// List pane
 	if a.contentH > 0 {
 		listWin := root.New(0, 1, a.listW, a.contentH)
@@ -250,6 +276,135 @@ func (a *App) drawMainView(root vaxis.Window) {
 		text = " j/k:navigate  n:new  d:delete  ?:help  :q:quit "
 	}
 	statusWin.PrintTruncate(0, vaxis.Segment{Text: text, Style: style})
+}
+
+// ── Editor tab rendering ─────────────────────────────────────────────────
+
+func (a *App) drawEditorContent(root vaxis.Window) {
+	if a.currentTab < 1 || a.currentTab > len(a.editorTabs) {
+		return
+	}
+	tab := a.editorTabs[a.currentTab-1]
+	pane := root.New(0, 1, a.width, a.contentH)
+	tab.Draw(pane)
+
+	// Status bar (same position as in drawMainView)
+	statusWin := root.New(0, a.height-1, a.width, 1)
+	var text string
+	var style vaxis.Style
+	switch {
+	case a.curState == stateEditorExitConfirm:
+		return // confirm dialog covers this
+	case a.errMsg != "":
+		text = " " + a.errMsg + " "
+		style = errStyle
+	case a.leaderPending:
+		text = " Leader: 1-9:tabs  n:new  q:quit  ?:help  (C-b again to pass through) "
+		style = confirmStyle
+	default:
+		text = " C-b:leader  <n>:switch tab (1:list 2-9:editor) "
+	}
+	statusWin.PrintTruncate(0, vaxis.Segment{Text: text, Style: style})
+}
+
+func (a *App) drawEditorExitConfirm(root vaxis.Window) {
+	msg := fmt.Sprintf(" Editor exited with code %d. Keep changes? (y/N) ", a.confirmExitCode)
+	// Draw centered dialog
+	boxW := len(msg) + 4
+	boxH := 3
+	x := (a.width - boxW) / 2
+	y := (a.contentH-boxH)/2 + 1
+	if x < 0 {
+		x = 0
+	}
+	if y < 1 {
+		y = 1
+	}
+	box := root.New(x, y, boxW, boxH)
+	box.Fill(vaxis.Cell{
+		Character: vaxis.Character{Grapheme: " ", Width: 1},
+	})
+	drawBoxBorder(box, confirmStyle)
+	box.PrintTruncate(1, vaxis.Segment{Text: msg, Style: confirmStyle})
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+
+// handleTabSwitch is removed. Tab switching is done via leader key (Ctrl+B + number)
+// or clicking on the tab bar with the mouse.
+
+// tabAtX returns the tab index (0 = list, 1+ = editor) at the given
+// column position in the tab bar, or -1 if no tab is at that column.
+func (a *App) tabAtX(col int) int {
+	x := 0
+	// List tab
+	w := len(" List  ")
+	if col >= x && col < x+w {
+		return 0
+	}
+	x += w
+	// Editor tabs
+	for i := range a.editorTabs {
+		x += 1 // separator
+		title := a.editorTabs[i].Title()
+		w = len(" " + title + "  ")
+		if col >= x && col < x+w {
+			return i + 1
+		}
+		x += w
+	}
+	return -1
+}
+
+func (a *App) updateTabFocus() {
+	for i, tab := range a.editorTabs {
+		if a.currentTab == i+1 {
+			tab.Focus()
+		} else {
+			tab.Blur()
+		}
+	}
+	if a.currentTab == 0 {
+		// Hide cursor in the list tab
+		a.vx.HideCursor()
+		// Trigger a preview load
+		if len(a.summaries) > 0 {
+			a.loadPreviewAsync()
+		}
+	}
+}
+
+// ── Editor lifecycle ──────────────────────────────────────────────────────
+
+// startEditorAsync fetches the current buffer content and creates an editor tab.
+func (a *App) startEditorAsync() {
+	if len(a.summaries) == 0 {
+		return
+	}
+	id := a.summaries[a.cursor].ID
+
+	// Switch to existing tab if already open for this buffer
+	for i, tab := range a.editorTabs {
+		if tab.BufferID == id {
+			a.currentTab = i + 1
+			a.updateTabFocus()
+			return
+		}
+	}
+
+	go func() {
+		buf, err := a.client.GetBuffer(id)
+		if err != nil {
+			a.vx.PostEvent(editorStarted{err: err})
+			return
+		}
+		tab, err := NewEditorTab(id, buf.Content, a.editorCmd)
+		if err != nil {
+			a.vx.PostEvent(editorStarted{err: err})
+			return
+		}
+		a.vx.PostEvent(editorStarted{tab: tab})
+	}()
 }
 
 // ── IPC: Async buffer operations ──────────────────────────────────────────

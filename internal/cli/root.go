@@ -56,7 +56,7 @@ func runTUI() error {
 	}
 	defer client.Close()
 
-	return tui.New(client, cfg.PreviewCommand).Run()
+	return tui.New(client, cfg.PreviewCommand, cfg.Editor).Run()
 }
 
 func newTuiCmd() *cobra.Command {
