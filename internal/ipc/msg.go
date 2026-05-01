@@ -6,19 +6,19 @@ import "encoding/json"
 type Op string
 
 const (
-	OpPing              Op = "Ping"
-	OpCreateBuffer      Op = "CreateBuffer"
-	OpGetBuffer         Op = "GetBuffer"
-	OpListBuffers       Op = "ListBuffers"
-	OpUpdateContent     Op = "UpdateContent"
-	OpUpdateLabel       Op = "UpdateLabel"
-	OpUpdateTags        Op = "UpdateTags"
-	OpSoftDelete        Op = "SoftDelete"
-	OpPermanentlyDelete Op = "PermanentlyDelete"
-	OpListTrash         Op = "ListTrash"
-	OpRestoreFromTrash  Op = "RestoreFromTrash"
-	OpSearch            Op = "Search"
-	OpCount             Op = "Count"
+	OpPing                Op = "Ping"
+	OpCreateBuffer        Op = "CreateBuffer"
+	OpGetBuffer           Op = "GetBuffer"
+	OpListBuffers         Op = "ListBuffers"
+	OpUpdateContent       Op = "UpdateContent"
+	OpUpdateLabel         Op = "UpdateLabel"
+	OpUpdateTags          Op = "UpdateTags"
+	OpSoftDelete          Op = "SoftDelete"
+	OpPermanentlyDelete   Op = "PermanentlyDelete"
+	OpListTrash           Op = "ListTrash"
+	OpRestoreFromTrash    Op = "RestoreFromTrash"
+	OpSearch              Op = "Search"
+	OpCount               Op = "Count"
 	OpListBufferSummaries Op = "ListBufferSummaries"
 )
 
@@ -75,8 +75,8 @@ type UpdateTagsPayload struct {
 }
 
 type SoftDeletePayload struct {
-	ID          int64 `json:"id"`
-	TTLSeconds  int   `json:"ttl_seconds,omitempty"`
+	ID         int64 `json:"id"`
+	TTLSeconds int   `json:"ttl_seconds,omitempty"`
 }
 
 type SearchPayload struct {

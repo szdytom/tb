@@ -19,11 +19,11 @@ type Config struct {
 // Default returns a Config populated from XDG conventions and environment.
 func Default() *Config {
 	return &Config{
-		DataDir:    DataDir(),
-		ConfigDir:  ConfigDir(),
-		SocketDir:  SocketDir(),
-		DBPath:     filepath.Join(DataDir(), "tmpbuffer.db"),
-		SocketPath: filepath.Join(SocketDir(), "tmpbuffer.sock"),
+		DataDir:        DataDir(),
+		ConfigDir:      ConfigDir(),
+		SocketDir:      SocketDir(),
+		DBPath:         filepath.Join(DataDir(), "tmpbuffer.db"),
+		SocketPath:     filepath.Join(SocketDir(), "tmpbuffer.sock"),
 		Editor:         os.Getenv("EDITOR"),
 		PreviewCommand: os.Getenv("TB_PREVIEW_CMD"),
 	}

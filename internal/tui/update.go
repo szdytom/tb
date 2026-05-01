@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"git.sr.ht/~rockorager/vaxis"
-	"github.com/szdytom/tb/internal/buffer"
 	vterm "git.sr.ht/~rockorager/vaxis/widgets/term"
+	"github.com/szdytom/tb/internal/buffer"
 )
 
 // ── Custom event types ────────────────────────────────────────────────────

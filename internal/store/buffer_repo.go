@@ -21,11 +21,11 @@ const (
 
 // ListFilter specifies filter, sort, and pagination options for List queries.
 type ListFilter struct {
-	Keyword  string
-	Since    *time.Time
-	Until    *time.Time
-	Limit    int
-	Offset   int
+	Keyword string
+	Since   *time.Time
+	Until   *time.Time
+	Limit   int
+	Offset  int
 	SortBy  SortField
 	SortAsc bool
 }
@@ -320,7 +320,9 @@ func (r *Repository) DeleteExpiredTrash() (int64, error) {
 }
 
 // scanBuffer scans a row into a Buffer struct.
-func scanBuffer(row interface{ Scan(dest ...interface{}) error }) (*buffer.Buffer, error) {
+func scanBuffer(row interface {
+	Scan(dest ...interface{}) error
+}) (*buffer.Buffer, error) {
 	var (
 		id          int64
 		label       string
