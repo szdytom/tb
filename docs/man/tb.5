@@ -1,0 +1,174 @@
+.\" Automatically generated from tb source; do not edit manually.
+.Dd May 2, 2026
+.Dt TB 5
+.Os
+.Sh NAME
+.Nm config.toml
+.Nd tmpbuffer configuration file format
+.Sh SYNOPSIS
+.Pa $XDG_CONFIG_HOME/tmpbuffer/config.toml
+.Pp
+.Nm
+.Pa -c config_path
+.Sh DESCRIPTION
+.Nm
+uses a TOML-based configuration file read at startup.
+If the file does not exist, sensible defaults are used for all values.
+Environment variables override corresponding file settings when both are
+present.
+.Pp
+The default config file path is
+.Pa $XDG_CONFIG_HOME/tmpbuffer/config.toml .
+An alternative path can be specified with the
+.Fl c
+option to
+.Xr tb 1
+or
+.Xr tmpbufferd 1 .
+.Sh FILE FORMAT
+The configuration file uses
+.Ux
+TOML syntax.
+The following sections describe the recognised keys.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Ic editor
+External editor command used when opening a buffer with
+.Ic tb edit
+or the TUI.
+.Pp
+If this key is not set, the
+.Ev EDITOR
+environment variable is consulted, followed by
+.Ev VISUAL ,
+with a fallback to
+.Xr vi 1 .
+.Pp
+Even when this key is set, the
+.Ev EDITOR
+environment variable still takes precedence at runtime.
+.Pp
+Default: unset (delegates to
+.Ev EDITOR
+env var, then
+.Xr vi 1 ) .
+.Pp
+Example:
+.Bd -literal -offset indent
+editor = "code --wait"
+.Ed
+.It Ic preview_command
+Shell command used to render buffer content in the TUI preview pane.
+The buffer content is piped to this command's stdin and the ANSI-coloured
+stdout is rendered via an embedded terminal emulator.
+.Pp
+Common choices include
+.Xr bat 1
+.Pq with Fl -color Ns = Ns Sy always
+or
+.Xr highlight 1 .
+.Pp
+If not set, the preview pane displays buffer content as plain text.
+.Pp
+Default: unset (plain text preview).
+.Pp
+Example:
+.Bd -literal -offset indent
+preview_command = "bat --color=always --style=plain"
+.Ed
+.It Ic time_format
+Controls how timestamps are displayed in the TUI buffer list.
+.Pp
+Acceptable values:
+.Bl -tag -width "absolute" -compact
+.It Sy relative
+Display relative timestamps (e.g.,
+.Dq now ,
+.Dq 5m ,
+.Dq 2h ,
+.Dq 3d ) .
+.It Sy absolute
+Display absolute timestamps (e.g.,
+.Dq 14:30
+for today,
+.Dq 04-28
+for earlier days).
+.El
+.Pp
+Default:
+.Sy relative .
+.Pp
+Example:
+.Bd -literal -offset indent
+time_format = "absolute"
+.Ed
+.It Ic trash_ttl_seconds
+Number of seconds a buffer remains in the trash before being permanently
+deleted.
+.Pp
+When a buffer is deleted (soft delete), it is moved to the trash rather
+than removed immediately. After the trash TTL expires, the buffer is
+purged automatically by the daemon's background cleanup goroutine.
+.Pp
+Set to 0 to disable automatic purging (buffers remain in the trash
+indefinitely and must be restored or permanently deleted manually).
+.Pp
+Default: 86400 (24 hours).
+.Pp
+Example:
+.Bd -literal -offset indent
+trash_ttl_seconds = 604800  # 7 days
+.Ed
+.El
+.Sh ENVIRONMENT
+The following environment variables override the corresponding configuration
+file keys at runtime. If both the file key and the environment variable are
+set, the environment variable wins.
+.Bl -tag -width "TB_TIME_FORMAT"
+.It Ev EDITOR
+Overrides the
+.Ic editor
+configuration key.
+.It Ev VISUAL
+Overrides the
+.Ic editor
+configuration key if
+.Ev EDITOR
+is not set. Follows the POSIX convention:
+.Ev EDITOR
+takes precedence over
+.Ev VISUAL .
+.It Ev TB_PREVIEW_CMD
+Overrides the
+.Ic preview_command
+configuration key.
+.It Ev TB_TIME_FORMAT
+Overrides the
+.Ic time_format
+configuration key (values:
+.Ql relative
+or
+.Ql absolute ) .
+.El
+.Sh FILES
+.Bl -tag -width "config.toml"
+.It Pa $XDG_CONFIG_HOME/tmpbuffer/config.toml
+Default configuration file location.
+If
+.Ev XDG_CONFIG_HOME
+is not set, the default is
+.Pa $HOME/.config/tmpbuffer/config.toml .
+.El
+.Sh EXAMPLES
+A comprehensive configuration file:
+.Bd -literal -offset indent
+editor = "vim"
+preview_command = "bat --color=always --style=plain"
+time_format = "relative"
+trash_ttl_seconds = 172800
+.Ed
+.Sh SEE ALSO
+.Xr tb 1 ,
+.Xr tmpbufferd 1
+.Pp
+Project repository: https://github.com/szdytom/tb

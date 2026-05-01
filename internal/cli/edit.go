@@ -72,7 +72,7 @@ func runEdit(idStr string, f *editFlags) error {
 
 	editorCmd := f.editor
 	if editorCmd == "" {
-		editorCmd = os.Getenv("EDITOR")
+		editorCmd = cfg.Editor
 	}
 	if editorCmd == "" {
 		editorCmd = "vi"

@@ -74,7 +74,11 @@ func runDaemonStart() error {
 		return err
 	}
 
-	cmd := exec.Command(daemonPath)
+	daemonArgs := []string{}
+	if configFile != "" {
+		daemonArgs = append(daemonArgs, "-c", configFile)
+	}
+	cmd := exec.Command(daemonPath, daemonArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

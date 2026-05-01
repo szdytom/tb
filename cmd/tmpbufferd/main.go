@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 
 	"github.com/szdytom/tb/internal/config"
@@ -8,6 +9,13 @@ import (
 )
 
 func main() {
+	configFile := flag.String("c", "", "path to config file")
+	flag.Parse()
+
+	if *configFile != "" {
+		config.SetConfigFile(*configFile)
+	}
+
 	cfg := config.Default()
 	if err := cfg.EnsureDirs(); err != nil {
 		log.Fatalf("create directories: %v", err)

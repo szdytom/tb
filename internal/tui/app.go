@@ -97,6 +97,9 @@ type App struct {
 	// Editor command (resolved once at startup)
 	editorCmd string
 
+	// Trash TTL in seconds (from config, default 86400)
+	trashTTL int
+
 	// Editor exit confirmation state (non-zero exit)
 	confirmExitTabIdx int
 	confirmExitCode   int
@@ -111,11 +114,12 @@ type App struct {
 	quitting      bool
 }
 
-func New(client Client, previewCmd, editorCmd string) *App {
+func New(client Client, previewCmd, editorCmd string, trashTTL int) *App {
 	return &App{
 		client:      client,
 		previewCmd:  previewCmd,
 		editorCmd:   editor.Resolve(editorCmd),
+		trashTTL:    trashTTL,
 		textPreview: NewTextPreview(),
 		vtPreview:   NewVTPreview(),
 		summaries:   []buffer.BufferSummary{},
@@ -457,7 +461,7 @@ func (a *App) createBufferAsync() {
 
 func (a *App) deleteBufferAsync(id int64) {
 	go func() {
-		err := a.client.SoftDelete(id, 86400)
+		err := a.client.SoftDelete(id, a.trashTTL)
 		a.vx.PostEvent(bufferDeleted{id: id, err: err})
 	}()
 }

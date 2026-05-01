@@ -30,7 +30,7 @@ Examples:
 			return runPipe(args[0], &f)
 		},
 	}
-	cmd.Flags().StringVarP(&f.command, "command", "c", "", "shell command to run (required)")
+	cmd.Flags().StringVar(&f.command, "command", "", "shell command to run (required)")
 	cmd.MarkFlagRequired("command")
 	cmd.Flags().BoolVarP(&f.new, "new", "n", false, "create a new buffer with the output")
 	return cmd

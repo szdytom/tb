@@ -6,7 +6,10 @@ import (
 	"github.com/szdytom/tb/internal/tui"
 )
 
-var jsonOutput bool
+var (
+	jsonOutput bool
+	configFile string
+)
 
 // newRootCmd creates the root cobra command for tb.
 func newRootCmd() *cobra.Command {
@@ -15,10 +18,17 @@ func newRootCmd() *cobra.Command {
 		Short:         "tmpbuffer — a terminal-based text buffer manager",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if configFile != "" {
+				config.SetConfigFile(configFile)
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTUI()
 		},
 	}
+	cmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "path to config file")
 	cmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
 	return cmd
 }
@@ -56,7 +66,7 @@ func runTUI() error {
 	}
 	defer client.Close()
 
-	return tui.New(client, cfg.PreviewCommand, cfg.Editor).Run()
+	return tui.New(client, cfg.PreviewCommand, cfg.Editor, cfg.TrashTTL).Run()
 }
 
 func newTuiCmd() *cobra.Command {

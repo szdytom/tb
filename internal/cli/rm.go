@@ -43,7 +43,7 @@ func runRm(idStr string, f *rmFlags) error {
 	if f.permanent {
 		err = client.PermanentlyDelete(id)
 	} else {
-		err = client.SoftDelete(id, 0)
+		err = client.SoftDelete(id, cfg.TrashTTL)
 	}
 	if err != nil {
 		printError(err.Error())

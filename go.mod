@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	git.sr.ht/~rockorager/vaxis v0.15.0
+	github.com/BurntSushi/toml v1.6.0
 	github.com/spf13/cobra v1.10.2
 	modernc.org/sqlite v1.50.0
 )
