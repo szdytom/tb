@@ -12,7 +12,7 @@
 |---|---|---|
 | Language | Go 1.22+ | Single-binary distribution, static linking, excellent stdlib for IPC/CLI, goroutine-based daemon concurrency |
 | Storage | SQLite via `modernc.org/sqlite` (pure-Go, no CGO) or `mattn/go-sqlite3` (CGO) | WAL mode, zero-bloat, embedded. Prefer pure-Go variant to avoid CGO cross-compilation issues |
-| TUI | `github.com/charmbracelet/bubbletea` + `bubbles` | Elm-architecture, lightweight, active ecosystem; natural fit for split-pane TUI with keyboard-driven interaction |
+| TUI | `git.sr.ht/~rockorager/vaxis` | Built-in terminal emulation (`term.Model`), window system with sub-windows/clipping, VT500 parser, event-driven rendering; eliminates need for separate VT/PTY layer |
 | IPC | Unix domain socket (stdlib `net.Listen` + `encoding/json`) | Documented constraint; Go stdlib makes UDS trivial |
 | Config | `github.com/BurntSushi/toml` | Matches requirement (TOML); mature, no-frills |
 | CLI | `github.com/spf13/cobra` | De facto standard for Go CLI; subcommand support, help generation |
@@ -41,7 +41,7 @@ tb/
 │   ├── store/              # SQLite persistence layer (repository)
 │   ├── daemon/             # Daemon lifecycle, IPC server, request routing
 │   ├── ipc/                # Shared IPC protocol (message types, UDS helpers)
-│   ├── tui/                # Bubbletea TUI: model, views, keybindings, search
+│   ├── tui/                # Vaxis-based TUI: event loop, window views, keybindings, search
 │   ├── editor/             # External editor invocation & temp file mgmt
 │   ├── pipe/               # Pipeline: shell command execution, output capture
 │   ├── config/             # TOML config loading, defaults, XDG paths
@@ -52,6 +52,13 @@ tb/
     ├── spec-phase1.md
     └── plan-phase1.md      # ← this file
 ```
+
+### Vaxis dependency
+
+`git.sr.ht/~rockorager/vaxis` replaces both the TUI framework (bubbletea) and the custom VT/PTY layer:
+- `vaxis.Vaxis` — TTY init, event loop, double-buffered diff rendering
+- `vaxis.Window` — Window system with sub-windows and clipping
+- `vaxis/widgets/term` — Full VT500 terminal emulator with PTY management, ANSI parsing, SGR colors, hyperlinks, clipboard
 
 ### Why `internal/`?
 
@@ -130,20 +137,28 @@ Each step produces a working, incrementally testable artifact. Steps are ordered
 
 ---
 
-### Step 5 — TUI: Basic Layout & Navigation
+### Step 5 — TUI with Vaxis: Layout, Navigation & VT Preview
 
-**Goal:** Launchable TUI showing buffer list in left pane, preview in right pane. Keyboard navigation works. Quit is clean.
+**Goal:** Launchable TUI using vaxis, showing buffer list in left pane, VT-rendered preview in right pane. Keyboard navigation works. Preview command (e.g., `bat`) renders ANSI-colored output via vaxis's `term.Model`. Quit is clean.
 
 **Artifacts:**
-- `internal/tui/model.go` — Bubbletea `Model` struct, `Init`/`Update`/`View`
-- `internal/tui/buffer_list.go` — List view: ID, timestamp, first-line preview, label
-- `internal/tui/preview.go` — Scrollable read-only preview, soft-wrap, line numbers
+- `internal/tui/app.go` — Vaxis initialization, event loop, top-level dispatch
+- `internal/tui/buffer_list.go` — List view rendered on a `vaxis.Window`: ID, timestamp, first-line preview, label
+- `internal/tui/preview.go` — Preview pane: plain text fallback or VT-rendered via `term.Model` when preview command configured
 - `internal/tui/keymap.go` — Default keybindings (j/k, arrows, Enter, n, d, /, :q, ?)
 - `internal/tui/help.go` — Help modal (? key)
-- `internal/tui/update.go` — Message routing, buffer state management
-- Wire into `cmd/tb/main.go` as default command
+- `internal/tui/update.go` — Event routing, buffer state management via IPC
+- `internal/config/config.go` (updated) — Add `PreviewCommand` field
+- Vaxis dependency: `git.sr.ht/~rockorager/vaxis` + `git.sr.ht/~rockorager/vaxis/widgets/term`
 
-**Acceptance:** AC-1 (instant buffer creation via `n`), AC-7 (200ms startup with 10k buffers — test with DB seeded with 10k rows).
+**Key vaxis patterns used:**
+- `vaxis.New()` → event loop via `vx.Events()` channel
+- `vx.Window().New(x, y, w, h)` → split layout (list left, preview right)
+- `term.Model.StartWithSize(cmd, w, h)` → preview command execution
+- `term.Model.Draw(win)` → ANSI-rendered output in preview pane
+- `vx.Render()` → double-buffered diff rendering
+
+**Acceptance:** AC-1 (instant buffer creation via `n`), AC-7 (200ms startup with 10k buffers), AC-10 (VT preview rendering) pass. Keyboard-driven navigation is smooth.
 
 ---
 
@@ -161,31 +176,35 @@ Each step produces a working, incrementally testable artifact. Steps are ordered
 
 ---
 
-### Step 7 — External Editor Integration
+### Step 7 — External Editor Integration (PTY Tab)
 
-**Goal:** `Enter` in TUI (and `tb edit <id>` in CLI) opens `$EDITOR` on a temp file, reads it back on editor exit, handles non-zero exit.
+**Goal:** `Enter` in TUI opens `$EDITOR` in a PTY tab (aerc-style). TUI remains responsive, tab bar shows open editor tabs. vaxis's `term.Model` handles PTY lifecycle and ANSI rendering.
 
 **Artifacts:**
-- `internal/editor/editor.go` — Resolve editor command ($EDITOR/$VISUAL/config), temp file creation, process execution, content read-back
+- `internal/tui/tab.go` — Tab manager: tab bar rendering, active tab tracking, switch/create/close
+- `internal/tui/edit_tab.go` — Editor tab: wraps `term.Model` running `$EDITOR tempfile`, renders in tab content area
+- `internal/tui/app.go` (updated) — Multi-tab model, tab-aware event dispatch
+- `internal/editor/editor.go` — Resolve editor command, temp file creation, content read-back on exit
 - `internal/editor/config.go` — Per-extension editor mapping
 - Non-zero exit handling: prompt user in TUI
 - Conflict warning (last-write-wins) with daemon log
+- Tab switch keys: `Tab` / `Shift+Tab`, `Alt+<n>`
 
-**Acceptance:** AC-3 (editor round-trip), AC-8 (non-zero exit handling) pass.
+**Acceptance:** AC-3 (editor round-trip), AC-8 (non-zero exit handling) pass. Editor opens in a tab, TUI stays responsive, buffer updates after editor exit.
 
 ---
 
 ### Step 8 — Pipeline Operations
 
-**Goal:** `!` keybinding in TUI triggers command prompt, pipes buffer content to shell command, shows preview, applies (replace or new buffer).
+**Goal:** `!` keybinding in TUI triggers command prompt, pipes buffer content to shell command, shows VT-rendered preview, applies (replace or new buffer).
 
 **Artifacts:**
 - `internal/pipe/exec.go` — `sh -c` execution, stdin piping, stdout capture, stderr capture
 - `internal/pipe/security.go` — Command string display, confirmation prompt
-- `internal/tui/pipe.go` — Command input modal, preview modal, confirm/cancel
+- `internal/tui/pipe.go` — Command input modal, preview modal using `term.Model`, confirm/cancel
 - CLI `tb pipe` wired to same logic
 
-**Acceptance:** AC-5 (pipeline operation) passes. Non-zero exit handling (FR-3.5.3) works.
+**Acceptance:** AC-5 (pipeline operation) passes. Pipeline preview uses VT rendering for colored output.
 
 ---
 
@@ -208,7 +227,7 @@ Each step produces a working, incrementally testable artifact. Steps are ordered
 **Goal:** All acceptance criteria verified, edge cases handled, documentation ready.
 
 **Artifacts:**
-- Integration tests covering all ACs (1–9)
+- Integration tests covering all ACs (1–10)
 - Benchmark test: 10k buffer startup time, search latency
 - Config file examples
 - `--help` output review
@@ -240,19 +259,23 @@ Every buffer mutation (create, edit, pipe) writes to SQLite synchronously within
 - After a crash, the data loss window is bounded by the time between the handler writing to DB and the OS flushing the WAL (typically < 100ms, well under the 2s requirement).
 - No additional goroutine needed for "auto-save"; it's just "save on every operation."
 
-### External editor flow
+### External editor flow (VT tab)
 
 ```
-TUI → request "edit buffer X" → daemon writes temp file → launches $EDITOR
-  → blocks (goroutine waits on process) → on exit: reads file → updates buffer
-  → sends response back to TUI/CLI
+TUI → Enter on buffer X → write temp file → create editor tab
+  → [tab bar: list | EDIT:X]
+  → spawn $EDITOR in PTY → VT renders editor output in real-time
+  → TUI stays responsive (other tabs, new buffer, etc.)
+  → editor exits → read temp file → update buffer via IPC → close tab
 ```
 
-The blocking happens in a goroutine so the daemon remains responsive to other requests during editing.
+The editor runs in a PTY inside a TUI tab (aerc-style). vaxis's `term.Model` (from Step 5) provides the PTY lifecycle, ANSI parsing, and rendering. This means the TUI never loses control of the terminal — the user can switch tabs, create new buffers, or quit while the editor is open. On editor exit, the temp file content is read back and the buffer is updated through the same IPC path as CLI edits.
 
 ### TUI vs CLI code sharing
 
-CLI commands and TUI components both talk to the daemon via the same IPC protocol (`internal/ipc`). There is no shared UI code — the TUI is a Bubbletea app, the CLI is Cobra. But the daemon handlers are shared: `tb add` (CLI) and `n` key (TUI) both send the same IPC `CreateBuffer` request.
+CLI commands and TUI components both talk to the daemon via the same IPC protocol (`internal/ipc`). There is no shared UI code — the TUI is a vaxis app, the CLI is Cobra. But the daemon handlers are shared: `tb add` (CLI) and `n` key (TUI) both send the same IPC `CreateBuffer` request.
+
+vaxis's `term.Model` is shared between the TUI preview pane (command preview), editor tabs (PTY rendering), and pipeline operation preview — all via the same `StartWithSize`/`Draw`/`Update` interface.
 
 ---
 

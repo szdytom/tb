@@ -2,77 +2,74 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"git.sr.ht/~rockorager/vaxis"
 	"github.com/szdytom/tb/internal/buffer"
 )
 
-var (
-	selectedStyle = lipgloss.NewStyle().Reverse(true)
-	labelStyle    = lipgloss.NewStyle().Faint(true)
-	headerStyle   = lipgloss.NewStyle().Underline(true).Bold(true)
-	emptyStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
-)
+// DrawList renders the buffer list into a vaxis window.
+// The window should have contentH rows. Row 0 is the header.
+func DrawList(win vaxis.Window, summaries []buffer.BufferSummary, cursor, listOff, contentH int) {
+	w, _ := win.Size()
 
-// RenderList renders the buffer list with a header row and buffer entries.
-// The first line is the header; remaining lines show up to (height-1) entries.
-// Caller pads to column width via padWidth.
-func RenderList(summaries []buffer.BufferSummary, cursor, offset, height, width int) string {
 	if len(summaries) == 0 {
-		return emptyStyle.Width(width).Render("No buffers. Press 'n' to create one.")
+		win.Println(0, vaxis.Segment{
+			Text:  "No buffers. Press 'n' to create one.",
+			Style: emptyStyle,
+		})
+		return
 	}
 
-	var lines []string
-	lines = append(lines, renderHeader(width))
+	// Header row
+	win.PrintTruncate(0, vaxis.Segment{
+		Text:  fmt.Sprintf("%-6s  %-6s  %s", "ID", "Time", "Preview"),
+		Style: headerStyle,
+	})
 
-	maxEntries := height - 1
+	maxEntries := contentH - 1
 	if maxEntries < 0 {
 		maxEntries = 0
 	}
-	end := offset + maxEntries
+
+	// Truncate preview to available width minus the header prefix width
+	// Header prefix: "#NNNNN  MMMMM  " — use 16 chars approximation
+	availWidth := w - 16
+	if availWidth < 10 {
+		availWidth = 10
+	}
+
+	end := listOff + maxEntries
 	if end > len(summaries) {
 		end = len(summaries)
 	}
-	for i := offset; i < end; i++ {
-		lines = append(lines, renderEntry(summaries[i], i == cursor))
-	}
-	return strings.Join(lines, "\n")
-}
 
-func renderHeader(width int) string {
-	h := fmt.Sprintf("%-6s  %-6s  %s", "ID", "Time", "Preview")
-	return headerStyle.Width(width).Render(h)
-}
+	row := 1
+	for i := listOff; i < end; i++ {
+		s := summaries[i]
+		preview := s.Preview
+		if preview == "" {
+			preview = "(empty)"
+		}
+		if len(preview) > availWidth {
+			preview = preview[:availWidth]
+		}
 
-func renderEntry(s buffer.BufferSummary, selected bool) string {
-	preview := s.Preview
-	if preview == "" {
-		preview = "(empty)"
-	}
-	// Ensure preview is a single line (SUBSTR in SQL may include newlines)
-	if idx := strings.IndexByte(preview, '\n'); idx >= 0 {
-		preview = preview[:idx]
-	}
+		var line string
+		if s.Label != "" {
+			line = fmt.Sprintf("#%-5d  %-6s  %s  %s", s.ID, relativeTime(s.UpdatedAt), preview, s.Label)
+		} else {
+			line = fmt.Sprintf("#%-5d  %-6s  %s", s.ID, relativeTime(s.UpdatedAt), preview)
+		}
 
-	var line strings.Builder
-	line.WriteString(fmt.Sprintf("#%-5d", s.ID))
-	line.WriteString("  ")
-	line.WriteString(fmt.Sprintf("%-6s", relativeTime(s.UpdatedAt)))
-	line.WriteString("  ")
-	line.WriteString(preview)
+		style := vaxis.Style{}
+		if i == cursor {
+			style.Attribute = vaxis.AttrReverse
+		}
 
-	if s.Label != "" {
-		line.WriteString("  ")
-		line.WriteString(labelStyle.Render(s.Label))
+		win.PrintTruncate(row, vaxis.Segment{Text: line, Style: style})
+		row++
 	}
-
-	rendered := line.String()
-	if selected {
-		rendered = selectedStyle.Render(rendered)
-	}
-	return rendered
 }
 
 func relativeTime(t time.Time) string {

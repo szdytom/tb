@@ -1,6 +1,6 @@
 package tui
 
-import tea "github.com/charmbracelet/bubbletea"
+import "git.sr.ht/~rockorager/vaxis"
 
 type keyAction int
 
@@ -22,21 +22,21 @@ const (
 	keySearch
 )
 
-func classifyKey(msg tea.KeyMsg) keyAction {
-	switch msg.String() {
-	case "j", "down":
+func classifyKey(ev vaxis.Key) keyAction {
+	switch ev.String() {
+	case "j", "Down":
 		return keyDown
-	case "k", "up":
+	case "k", "Up":
 		return keyUp
-	case "pgdown", " ", "ctrl+f":
+	case "Page_Down", "space", "Ctrl+f":
 		return keyPageDown
-	case "pgup", "ctrl+b":
+	case "Page_Up", "Ctrl+b":
 		return keyPageUp
 	case "g":
 		return keyHome
 	case "G":
 		return keyEnd
-	case "enter":
+	case "Enter":
 		return keyEnter
 	case "n":
 		return keyNew
@@ -48,11 +48,11 @@ func classifyKey(msg tea.KeyMsg) keyAction {
 		return keyHelp
 	case "y", "Y":
 		return keyConfirm
-	case "N", "esc":
+	case "N", "Escape":
 		return keyDeny
 	case "/":
 		return keySearch
-	case "ctrl+c":
+	case "Ctrl+c":
 		return keyQuit
 	default:
 		return keyNone

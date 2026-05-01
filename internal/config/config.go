@@ -7,12 +7,13 @@ import (
 
 // Config holds all configuration for tmpbuffer.
 type Config struct {
-	DataDir    string
-	ConfigDir  string
-	SocketDir  string
-	DBPath     string
-	SocketPath string
-	Editor     string
+	DataDir        string
+	ConfigDir      string
+	SocketDir      string
+	DBPath         string
+	SocketPath     string
+	Editor         string
+	PreviewCommand string
 }
 
 // Default returns a Config populated from XDG conventions and environment.
@@ -23,7 +24,8 @@ func Default() *Config {
 		SocketDir:  SocketDir(),
 		DBPath:     filepath.Join(DataDir(), "tmpbuffer.db"),
 		SocketPath: filepath.Join(SocketDir(), "tmpbuffer.sock"),
-		Editor:     os.Getenv("EDITOR"),
+		Editor:         os.Getenv("EDITOR"),
+		PreviewCommand: os.Getenv("TB_PREVIEW_CMD"),
 	}
 }
 

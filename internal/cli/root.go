@@ -2,8 +2,6 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
-
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/szdytom/tb/internal/config"
 	"github.com/szdytom/tb/internal/tui"
 )
@@ -58,13 +56,7 @@ func runTUI() error {
 	}
 	defer client.Close()
 
-	m := tui.New(client)
-	program := tea.NewProgram(m, tea.WithAltScreen())
-	if _, err := program.Run(); err != nil {
-		printError(err.Error())
-		return err
-	}
-	return nil
+	return tui.New(client, cfg.PreviewCommand).Run()
 }
 
 func newTuiCmd() *cobra.Command {

@@ -32,7 +32,6 @@ Phase 1 includes:
 - Multi-cursor editing (delegated to the external editor)
 - Plugin/extension system
 - Network sharing or collaboration
-- Syntax highlighting in the TUI preview (plain text only)
 - Snapshots and version time-travel beyond the last edited state
 
 ### 1.4 Definitions
@@ -87,7 +86,7 @@ The daemon starts automatically on the first `tb` invocation if not already runn
 **FR-3.2.1 Main Layout**
 - The TUI shall present a split view:
   - **Left pane (buffer list):** Scrollable list of all active buffers, sorted by last modification time (most recent first). Each entry shows ID, first line preview (truncated to fit), timestamp, and an optional label.
-  - **Right pane (preview):** Displays the full content of the currently highlighted buffer in read-only plain text. Supports vertical/horizontal scrolling.
+  - **Right pane (preview):** Displays the full content of the currently highlighted buffer in a terminal-emulator (VT) renderer capable of parsing ANSI escape sequences. By default, content is rendered as plain text. If a user-configured preview command is set (e.g., `bat`, `jq .`, `pygmentize`), the buffer content is piped to that command and the colored output is rendered inside the VT. Supports vertical/horizontal scrolling.
 
 **FR-3.2.2 Navigation and Interaction**
 - Keyboard shortcuts shall include (among others):
@@ -106,6 +105,9 @@ The daemon starts automatically on the first `tb` invocation if not already runn
 
 **FR-3.2.4 Preview Pane Behavior**
 - The preview pane shall update instantly when the selection changes.
+- When a preview command is configured, the buffer content is written to a temporary file and the command is executed with that file as an argument (or via stdin pipe). The command's stdout (ANSI-escaped) is fed into the VT parser and rendered in the preview pane.
+- If no preview command is configured, buffer content is rendered as plain text directly.
+- The VT renderer shall support standard ANSI escape sequences: SGR colors (8/16/256/truecolor), bold, dim, italic, underline, cursor positioning, and clear screen.
 - Long lines shall be soft-wrapped; horizontal scrolling shall be supported via `h`/`l` or arrow keys when the preview pane is focused.
 - Line numbers shall be displayed optionally (toggle with a key or configuration).
 
@@ -114,10 +116,11 @@ The daemon starts automatically on the first `tb` invocation if not already runn
 **FR-3.3.1 Editor Invocation**
 - When a buffer is opened for editing (via `Enter` in TUI or `tb edit <id>`), the daemon shall:
   1. Write the current buffer content to a temporary file (preserving line endings).
-  2. Launch the editor defined by the `$EDITOR` environment variable (or `$VISUAL`, or a configured editor) with that temporary file path.
-  3. Block and wait for the editor process to terminate.
-  4. Read the modified temporary file content back into the buffer.
+  2. Create a new editor tab in the TUI, containing a PTY that runs the editor defined by `$EDITOR` (or `$VISUAL`, or a configured editor) with that temporary file path.
+  3. The TUI shall remain fully responsive while the editor is open. The editor tab captures the editor's fullscreen output via the PTY, renders it in real-time through the VT parser, and displays a tab bar showing all open tabs.
+  4. When the editor process exits, read the modified temporary file content back into the buffer.
   5. Delete the temporary file.
+  6. Close the editor tab and return focus to the buffer list.
 - If the editor process exits with a non-zero code, the TUI shall prompt the user whether to keep changes or revert to the original content.
 
 **FR-3.3.2 Editor Configuration**
@@ -190,6 +193,34 @@ The daemon starts automatically on the first `tb` invocation if not already runn
 
 **FR-3.6.2 Restoration**
 - Upon daemon restart, the TUI and CLI shall see the exact same set of buffers as before, with the same IDs, metadata, and content.
+
+### 3.7 Terminal Emulation & Preview Rendering
+
+**FR-3.7.1 VT Core**
+- The TUI shall include a standalone terminal emulator (VT) that parses ANSI escape sequences and maintains a screen model (a 2D matrix of cells, each containing a rune, foreground color, background color, and text attributes).
+- The VT shall support at minimum: SGR colors (8/16/256/truecolor), bold, dim, italic, underline, cursor positioning (CUP/CUU/CUD/CUF/CUB), erase (ED/EL), line feed, carriage return, and bell (ignored).
+- The VT screen model shall have configurable dimensions matching the preview pane size, and shall support resize (SIGWINCH propagation to child PTY).
+
+**FR-3.7.2 PTY Lifecycle**
+- A thin PTY wrapper shall manage child process execution:
+  - `Start(command)`: fork a shell (`sh -c`) in a PTY, return a handle.
+  - `Resize(w, h)`: send SIGWINCH to the child; update VT dimensions.
+  - `Read()`: read PTY output, feed to the VT parser, return updated screen state.
+  - `Close()`: send SIGTERM, wait for child exit, clean up PTY fd.
+- This wrapper is used by both the preview command renderer and the editor tab system.
+
+**FR-3.7.3 Preview Command**
+- The user may configure a preview command in `config.toml` (e.g., `preview_command = "bat --color=always --style=plain"`). If set, every time the preview pane updates, the buffer content is piped to this command and the ANSI output is rendered via the VT.
+- If no preview command is configured, content is rendered as plain text (passthrough, no VT parsing).
+- The VT screen for preview shall maintain scrollback history up to the pane height. The user can scroll the preview content vertically.
+- Preview command execution should be cached: if the buffer content has not changed, the previous VT screen state is reused (no re-execution).
+
+**FR-3.7.4 Tab System (Editor Integration)**
+- The TUI shall support multiple tabs: a "list" tab (the default buffer list + preview view) and zero or more "editor" tabs.
+- Each editor tab runs a PTY with the user's `$EDITOR` editing a temporary file (as described in FR-3.3.1).
+- A tab bar at the top of the TUI shows open tabs. The active tab's PTY output is rendered fullscreen (replacing the split-pane layout).
+- Tab switching keys: `Tab` / `Shift+Tab` to cycle, `Alt+1`/`Alt+2`/... to jump to a specific tab.
+- Closing the last editor tab returns to the list tab. Closing all tabs exits the TUI.
 
 ---
 
@@ -275,13 +306,18 @@ Each functional requirement must be verified by the following concrete tests.
 - **When** the second editor saves after the first  
 - **Then** the content reflects the second save (last write wins), and the daemon logs a warning to the log file.
 
+### AC-10: VT Preview Rendering
+- **Given** a buffer containing `{"a": 1}` and a configured preview command `jq --color-output .`  
+- **When** the user selects that buffer in the TUI list  
+- **Then** the preview pane renders color-highlighted JSON output (ANSI escape sequences parsed into colored cells), and the pane remains vertically scrollable.
+
 ---
 
 ## 6. Technical Constraints (for reference)
 
 - Storage engine: SQLite 3.x, with WAL journal mode.
 - IPC mechanism: Unix domain socket on Linux/macOS.
-- Implementation language: C++ or Go (to be finalized; chosen for performance and binary distribution simplicity).
+- Implementation language: Go, with `git.sr.ht/~rockorager/vaxis` for TUI and terminal emulation.
 - Optionally no dynamic linking to heavy runtimes; final binary should be static or depend only on system libc and SQLite.
 - Minimal system dependencies: terminal, `$EDITOR` (or equivalent), and a POSIX shell.
 

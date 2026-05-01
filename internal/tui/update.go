@@ -3,293 +3,243 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbletea"
+	"git.sr.ht/~rockorager/vaxis"
 	"github.com/szdytom/tb/internal/buffer"
-	"github.com/szdytom/tb/internal/ipc"
-	"github.com/szdytom/tb/internal/store"
+	vterm "git.sr.ht/~rockorager/vaxis/widgets/term"
 )
 
-// ── Update ────────────────────────────────────────────────────────────
+// ── Custom event types ────────────────────────────────────────────────────
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		return m.handleResize(msg), nil
-	case tea.KeyMsg:
-		return m.handleKey(msg)
-	case buffersLoadedMsg:
-		return m.handleBuffersLoaded(msg)
-	case bufferContentLoadedMsg:
-		return m.handleContentLoaded(msg), nil
-	case bufferCreatedMsg:
-		return m.handleBufferCreated(msg), nil
-	case bufferDeletedMsg:
-		return m.handleBufferDeleted(msg), nil
-	case errTimeoutMsg:
-		m.errMsg = ""
-		m.errFrames = 0
-		return m, nil
-	}
-	return m, nil
+type buffersLoaded struct {
+	summaries []buffer.BufferSummary
+	err       error
 }
 
-// ── Resize ────────────────────────────────────────────────────────────
-
-func (m Model) handleResize(msg tea.WindowSizeMsg) Model {
-	m.width = msg.Width
-	m.height = msg.Height
-
-	m.listW = m.width * 40 / 100
-	if m.listW < 30 {
-		m.listW = 30
-	}
-	m.previewW = m.width - m.listW - 1
-	if m.previewW < 20 {
-		m.previewW = 20
-	}
-
-	contentH := m.height - 2
-	if contentH < 1 {
-		contentH = 1
-	}
-	m.contentH = contentH
-	m.preview.SetSize(m.previewW, m.contentH)
-	return m
+type contentLoaded struct {
+	id      int64
+	gen     int
+	content *buffer.Buffer
+	err     error
 }
 
-// ── Key handlers ──────────────────────────────────────────────────────
+type bufferCreated struct {
+	summary *buffer.BufferSummary
+	err     error
+}
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.awaitingColon {
-		m.awaitingColon = false
-		if msg.String() == "q" {
-			m.state = stateQuitting
-			return m, tea.Quit
+type bufferDeleted struct {
+	id  int64
+	err error
+}
+
+type errClear struct{}
+
+// ── Event dispatch ──────────────────────────────────────────────────────
+
+func (a *App) handleEvent(ev vaxis.Event) {
+	switch ev := ev.(type) {
+	case vaxis.Key:
+		a.handleKey(ev)
+	case vaxis.Resize:
+		a.handleResize(ev)
+	case buffersLoaded:
+		a.handleBuffersLoaded(ev)
+	case contentLoaded:
+		a.handleContentLoaded(ev)
+	case bufferCreated:
+		a.handleBufferCreated(ev)
+	case bufferDeleted:
+		a.handleBufferDeleted(ev)
+	case errClear:
+		a.errMsg = ""
+	case vterm.EventClosed:
+		// VT preview command finished; nothing special needed
+	case vaxis.Redraw:
+		// Triggered after SyncFunc; state already updated, just re-draw
+	}
+}
+
+// ── Resize ───────────────────────────────────────────────────────────────
+
+func (a *App) handleResize(ev vaxis.Resize) {
+	a.width = ev.Cols
+	a.height = ev.Rows
+	a.recalcLayout()
+}
+
+// ── Key dispatch ─────────────────────────────────────────────────────────
+
+func (a *App) handleKey(ev vaxis.Key) {
+	if a.awaitingColon {
+		a.awaitingColon = false
+		if ev.String() == "q" {
+			a.quitting = true
 		}
+		return
 	}
 
-	switch m.state {
+	switch a.curState {
 	case stateBrowsing:
-		return m.handleKeyBrowsing(msg)
+		a.handleKeyBrowsing(ev)
 	case stateConfirmDelete:
-		return m.handleKeyConfirmDelete(msg)
+		a.handleKeyConfirmDelete(ev)
 	case stateHelp:
-		if msg.String() == "?" || msg.String() == "esc" {
-			m.state = stateBrowsing
+		if ev.String() == "?" || ev.String() == "Escape" {
+			a.curState = stateBrowsing
 		}
-		return m, nil
 	}
-	return m, nil
 }
 
-func (m Model) handleKeyBrowsing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.String() == ":" {
-		m.awaitingColon = true
-		return m, nil
+func (a *App) handleKeyBrowsing(ev vaxis.Key) {
+	if ev.String() == ":" {
+		a.awaitingColon = true
+		return
 	}
 
-	switch classifyKey(msg) {
+	switch classifyKey(ev) {
 	case keyDown:
-		m.moveDown()
-		return m, m.loadPreview()
+		a.moveDown()
+		a.loadPreviewAsync()
 	case keyUp:
-		m.moveUp()
-		return m, m.loadPreview()
+		a.moveUp()
+		a.loadPreviewAsync()
 	case keyPageDown:
-		step := m.contentH - 1; if step < 1 { step = 1 }; m.cursor += step
-		if m.cursor >= len(m.summaries) {
-			m.cursor = len(m.summaries) - 1
+		step := a.contentH - 1
+		if step < 1 {
+			step = 1
 		}
-		m.listOff = m.cursor
-		return m, m.loadPreview()
+		a.cursor += step
+		a.clampCursor()
+		a.listOff = a.cursor
+		a.loadPreviewAsync()
 	case keyPageUp:
-		step := m.contentH - 1; if step < 1 { step = 1 }; m.cursor -= step
-		if m.cursor < 0 {
-			m.cursor = 0
+		step := a.contentH - 1
+		if step < 1 {
+			step = 1
 		}
-		m.listOff = m.cursor
-		return m, m.loadPreview()
+		a.cursor -= step
+		a.clampCursor()
+		a.listOff = a.cursor
+		a.loadPreviewAsync()
 	case keyHome:
-		m.cursor = 0
-		m.listOff = 0
-		return m, m.loadPreview()
+		a.cursor = 0
+		a.listOff = 0
+		a.loadPreviewAsync()
 	case keyEnd:
-		m.cursor = len(m.summaries) - 1
-		m.listOff = m.cursor - m.contentH + 3
-		if m.listOff < 0 {
-			m.listOff = 0
+		a.cursor = len(a.summaries) - 1
+		if a.cursor < 0 {
+			a.cursor = 0
 		}
-		return m, m.loadPreview()
+		a.listOff = a.cursor - a.contentH + 3
+		if a.listOff < 0 {
+			a.listOff = 0
+		}
+		a.loadPreviewAsync()
 	case keyNew:
-		return m, m.createBuffer()
+		a.createBufferAsync()
 	case keyDelete:
-		if len(m.summaries) > 0 {
-			m.deletingID = m.summaries[m.cursor].ID
-			m.state = stateConfirmDelete
+		if len(a.summaries) > 0 {
+			a.deletingID = a.summaries[a.cursor].ID
+			a.curState = stateConfirmDelete
 		}
-		return m, nil
 	case keyHelp:
-		m.state = stateHelp
-		return m, nil
+		a.curState = stateHelp
 	case keyQuit:
-		m.state = stateQuitting
-		return m, tea.Quit
+		a.quitting = true
 	}
-	return m, nil
 }
 
-func (m Model) handleKeyConfirmDelete(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch classifyKey(msg) {
+func (a *App) handleKeyConfirmDelete(ev vaxis.Key) {
+	switch classifyKey(ev) {
 	case keyConfirm:
-		m.state = stateBrowsing
-		return m, m.deleteBuffer(m.deletingID)
+		a.curState = stateBrowsing
+		a.deleteBufferAsync(a.deletingID)
 	case keyDeny:
-		m.state = stateBrowsing
-		m.deletingID = 0
-		return m, nil
-	}
-	return m, nil
-}
-
-func (m *Model) moveDown() {
-	if m.cursor < len(m.summaries)-1 {
-		m.cursor++
-		m.clampListOff()
+		a.curState = stateBrowsing
+		a.deletingID = 0
 	}
 }
 
-func (m *Model) moveUp() {
-	if m.cursor > 0 {
-		m.cursor--
-		m.clampListOff()
-	}
-}
+// ── Internal message handlers ───────────────────────────────────────────
 
-func (m *Model) clampListOff() {
-	if m.cursor < m.listOff {
-		m.listOff = m.cursor
-	}
-	if m.cursor >= m.listOff+m.contentH-2 && m.contentH > 0 {
-		m.listOff = m.cursor - m.contentH + 3
-		if m.listOff < 0 {
-			m.listOff = 0
-		}
-	}
-}
-
-// ── IPC commands ──────────────────────────────────────────────────────
-
-func (m Model) loadBuffers() tea.Cmd {
-	client := m.client
-	return func() tea.Msg {
-		summaries, err := client.ListBufferSummaries(ipc.ListBuffersPayload{
-			SortBy:  string(store.SortByUpdatedAt),
-			SortAsc: false,
-		})
-		return buffersLoadedMsg{summaries: summaries, err: err}
-	}
-}
-
-func (m Model) loadPreview() tea.Cmd {
-	if len(m.summaries) == 0 {
-		return nil
-	}
-	client := m.client
-	id := m.summaries[m.cursor].ID
-	return func() tea.Msg {
-		buf, err := client.GetBuffer(id)
-		if err != nil {
-			return bufferContentLoadedMsg{err: err}
-		}
-		return bufferContentLoadedMsg{content: buf.Content}
-	}
-}
-
-func (m Model) createBuffer() tea.Cmd {
-	client := m.client
-	return func() tea.Msg {
-		id, err := client.CreateBuffer("", "", nil)
-		if err != nil {
-			return bufferCreatedMsg{err: err}
-		}
-		buf, err := client.GetBuffer(id)
-		if err != nil {
-			return bufferCreatedMsg{err: err}
-		}
-		s := buffer.NewBufferSummary(buf)
-		return bufferCreatedMsg{summary: &s}
-	}
-}
-
-func (m Model) deleteBuffer(id int64) tea.Cmd {
-	client := m.client
-	return func() tea.Msg {
-		err := client.SoftDelete(id, 86400)
-		return bufferDeletedMsg{id: id, err: err}
-	}
-}
-
-// ── Message handlers ──────────────────────────────────────────────────
-
-func (m Model) handleBuffersLoaded(msg buffersLoadedMsg) (Model, tea.Cmd) {
+func (a *App) handleBuffersLoaded(msg buffersLoaded) {
 	if msg.err != nil {
-		m.errMsg = fmt.Sprintf("Failed to load buffers: %v", msg.err)
-		m.errFrames = 60
-		m.state = stateBrowsing
-		return m, nil
+		a.setError(fmt.Sprintf("Failed to load buffers: %v", msg.err))
+		a.curState = stateBrowsing
+		return
 	}
-	m.summaries = msg.summaries
-	m.state = stateBrowsing
-	// Trigger preview load for first buffer
-	if len(m.summaries) > 0 {
-		return m, m.loadPreview()
+	a.summaries = msg.summaries
+	a.curState = stateBrowsing
+	if len(msg.summaries) > 0 {
+		a.loadPreviewAsync()
 	}
-	return m, nil
 }
 
-func (m Model) handleContentLoaded(msg bufferContentLoadedMsg) Model {
+func (a *App) handleContentLoaded(msg contentLoaded) {
 	if msg.err != nil {
-		m.errMsg = fmt.Sprintf("Failed to load preview: %v", msg.err)
-		m.errFrames = 60
-		return m
+		a.setError(fmt.Sprintf("Failed to load preview: %v", msg.err))
+		return
 	}
-	m.preview.SetContent(msg.content)
-	m.preview.SetSize(m.previewW, m.contentH)
-	return m
+	// Discard stale loads from older navigation
+	if msg.gen != a.previewGen {
+		return
+	}
+
+	a.textPreview.SetContent(msg.content.Content)
+
+	// Use VT preview if a preview command is configured, or if content has ANSI escapes
+	useVT := a.previewCmd != ""
+	if !useVT {
+		content := msg.content.Content
+		for i := 0; i < len(content)-1; i++ {
+			if content[i] == '\x1b' && content[i+1] == '[' {
+				useVT = true
+				break
+			}
+		}
+	}
+	if useVT && a.previewW > 0 && a.contentH > 0 {
+		a.startVTPreview(msg.content.Content)
+	} else {
+		a.vtActive = false
+	}
 }
 
-func (m Model) handleBufferCreated(msg bufferCreatedMsg) Model {
+func (a *App) handleBufferCreated(msg bufferCreated) {
 	if msg.err != nil {
-		m.errMsg = fmt.Sprintf("Failed to create buffer: %v", msg.err)
-		m.errFrames = 60
-		return m
+		a.setError(fmt.Sprintf("Failed to create buffer: %v", msg.err))
+		return
 	}
 	if msg.summary != nil {
-		m.summaries = append([]buffer.BufferSummary{*msg.summary}, m.summaries...)
-		m.cursor = 0
-		m.listOff = 0
+		a.summaries = append([]buffer.BufferSummary{*msg.summary}, a.summaries...)
+		a.cursor = 0
+		a.listOff = 0
+		a.vtPreview.Close()
+		a.vtActive = false
+		a.loadPreviewAsync()
 	}
-	return m
 }
 
-func (m Model) handleBufferDeleted(msg bufferDeletedMsg) Model {
+func (a *App) handleBufferDeleted(msg bufferDeleted) {
 	if msg.err != nil {
-		m.errMsg = fmt.Sprintf("Failed to delete buffer: %v", msg.err)
-		m.errFrames = 60
-		return m
+		a.setError(fmt.Sprintf("Failed to delete buffer: %v", msg.err))
+		return
 	}
-	for i, s := range m.summaries {
+	for i, s := range a.summaries {
 		if s.ID == msg.id {
-			m.summaries = append(m.summaries[:i], m.summaries[i+1:]...)
-			if m.cursor >= len(m.summaries) && m.cursor > 0 {
-				m.cursor--
+			a.summaries = append(a.summaries[:i], a.summaries[i+1:]...)
+			if a.cursor >= len(a.summaries) && a.cursor > 0 {
+				a.cursor--
 			}
-			if m.listOff > m.cursor {
-				m.listOff = m.cursor
+			if a.listOff > a.cursor {
+				a.listOff = a.cursor
 			}
 			break
 		}
 	}
-	m.deletingID = 0
-	return m
+	a.deletingID = 0
+	// Reload preview if we still have buffers
+	if len(a.summaries) > 0 {
+		a.loadPreviewAsync()
+	}
 }

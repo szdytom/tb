@@ -7,6 +7,23 @@ Tests: ✅ all pass (`go test ./...`)
 
 ---
 
+## Architecture Change: Bubbletea → Vaxis (2026-05-01)
+
+**Decision:** Replace `github.com/charmbracelet/bubbletea` + custom `internal/vt/` with `git.sr.ht/~rockorager/vaxis`.
+
+**Why:** Building a PTY-based terminal emulator from scratch is too complex. Vaxis's `widgets/term` provides a complete, production-quality terminal emulator (PTY lifecycle, VT500 ANSI parser, double-buffered rendering, window system) off the shelf.
+
+**Impact:**
+- Step 5 must be **redone**: vaxis event loop instead of bubbletea Model/Update/View
+- `internal/vt/` package eliminated entirely
+- Old Step 6 (VT Infrastructure) subsumed into new Step 5
+- Steps 7-11 renumbered to 6-10
+- Editor tabs and pipeline preview use `term.Model` directly
+
+**See also:** `docs/Creating Terminal Multiplexer with Vaxis.md`, `docs/plan-phase1.md`
+
+---
+
 ## Step 1 — Project Scaffolding & Data Model
 
 **Status: COMPLETE**
@@ -92,10 +109,13 @@ Daemon auto-purge goroutine added as modification to `internal/daemon/daemon.go`
 
 ---
 
-## Step 5 — TUI: Basic Layout & Navigation
+## Step 5 — TUI with Vaxis: Layout, Navigation & VT Preview
 
 **Status: COMPLETE**
 
+**Change:** The bubbletea TUI was replaced with a vaxis-based implementation. The `internal/vt/` package is eliminated — vaxis's `widgets/term` provides terminal emulation for VT preview.
+
+**Kept artifacts (unchanged, reused from prior steps):**
 | Artifact | File | Status |
 |---|---|---|
 | `BufferSummary` type + `NewBufferSummary` | `internal/buffer/model.go` | ✅ |
@@ -103,17 +123,27 @@ Daemon auto-purge goroutine added as modification to `internal/daemon/daemon.go`
 | `OpListBufferSummaries` IPC constant | `internal/ipc/msg.go` | ✅ |
 | Daemon handler + dispatch case | `internal/daemon/handlers.go` | ✅ |
 | `ListBufferSummaries` on `cli.Client` | `internal/cli/client.go` | ✅ |
-| Bubbletea Model, Init, View | `internal/tui/model.go` | ✅ |
-| Update loop + message handlers | `internal/tui/update.go` | ✅ |
-| Buffer list pane (virtual scrolling) | `internal/tui/buffer_list.go` | ✅ |
-| Preview pane (line nums, scroll) | `internal/tui/preview.go` | ✅ |
-| Keybindings (j/k, n, d, :q, ?, g/G, PgUp/Dn) | `internal/tui/keymap.go` | ✅ |
-| Help overlay | `internal/tui/help.go` | ✅ |
-| Root command RunE → TUI (default) | `internal/cli/root.go` | ✅ |
-| `tb tui` subcommand | `internal/cli/root.go` | ✅ |
-| TUI ↔ daemon interface (no import cycle) | `internal/tui/model.go` (`Client` interface) | ✅ |
-| Dependencies: bubbletea, bubbles, lipgloss | `go.mod` | ✅ |
 
-### AC Status
-- **AC-1** (instant buffer creation via `n`): ✅ — `CreateBuffer` IPC, prepends to list, selects new buffer
-- **AC-7** (200ms startup with 10k buffers): ✅ — `BufferSummary` avoids loading full content; virtual scrolling renders only visible range
+**New vaxis-based artifacts:**
+
+| Artifact | File | Lines | Status |
+|---|---|---|---|
+| App struct, vaxis init, event loop + style vars | `internal/tui/app.go` | ~255 | ✅ |
+| Buffer list pane (vaxis.Window rendering) | `internal/tui/buffer_list.go` | ~80 | ✅ |
+| Preview state + text/term.Model VT rendering | `internal/tui/preview.go` | ~130 | ✅ |
+| Keybinding mapping (vaxis.Key → action) | `internal/tui/keymap.go` | ~60 | ✅ |
+| Help overlay (centered border box) | `internal/tui/help.go` | ~60 | ✅ |
+| Event routing + IPC goroutines + state mutations | `internal/tui/update.go` | ~190 | ✅ |
+
+**Deleted (old bubbletea files):**
+| File | Status |
+|---|---|
+| `internal/tui/model.go` | 🗑️ Cleared (kept as empty placeholder) |
+| Dependencies: bubbletea, lipgloss, creack/pty | 🗑️ Removed from go.mod |
+
+**New dependencies:** `git.sr.ht/~rockorager/vaxis` (via local replace: `/tmp/vaxis`)
+**Key design decisions:**
+- Async IPC via goroutines + `vx.PostEvent()` (custom event types work since vaxis.Event is `interface{}`)
+- Event loop re-draws every frame unconditionally — vaxis double-buffered diff rendering makes it efficient
+- VT preview uses `term.Model` with `cat` piping content through stdin; ANSI escapes automatically parsed
+- Help overlay drawn with box-drawing characters (`┌┐└┘─│`) via `win.SetCell`
