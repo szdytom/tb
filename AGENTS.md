@@ -13,3 +13,6 @@ Read [Requirements Doc](./docs/spec-phase1.md).
 - Write tests. Not too many. Mostly integration.
 - Define success criteria. Loop until verified.
 
+## Code Style
+
+- Use Go idioms. Follow Go conventions. Run `go fmt` on all code.

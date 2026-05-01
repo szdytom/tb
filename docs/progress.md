@@ -147,3 +147,27 @@ Daemon auto-purge goroutine added as modification to `internal/daemon/daemon.go`
 - Event loop re-draws every frame unconditionally — vaxis double-buffered diff rendering makes it efficient
 - VT preview uses `term.Model` with `cat` piping content through stdin; ANSI escapes automatically parsed
 - Help overlay drawn with box-drawing characters (`┌┐└┘─│`) via `win.SetCell`
+
+---
+
+## Step 6 — TUI: Search & Filter
+
+**Status: COMPLETE**
+
+| Artifact | File | Status |
+|---|---|---|
+| Search state management, debounced IPC, key handling | `internal/tui/search.go` | ✅ |
+| `Search` added to `Client` interface | `internal/tui/app.go` | ✅ |
+| `stateSearch` routing, `/` key handler, search result dispatch | `internal/tui/update.go` | ✅ |
+| `vaxis/widgets/textinput` for search input (proper key handling) | `internal/tui/search.go` | ✅ |
+| Status bar renders `textinput.Model` during search | `internal/tui/app.go` | ✅ |
+| Paste support during search | `internal/tui/update.go` | ✅ |
+
+**Design:**
+- `/` key enters search mode; `textinput.Model` renders in the status bar with `"/"` prompt
+- Literal search uses `ListBufferSummaries` with `Keyword` (server-side LIKE, returns `[]BufferSummary`)
+- Regex search (prefix `~`) uses `Search` endpoint with `isRegex=true`, converts to summaries
+- Debounce 150ms timer resets on each keystroke; generation counter discards stale results
+- `allSummaries` cached so Escape clears instantly without daemon round-trip
+- `searchGen` incremented on exit to invalidate in-flight goroutines
+- Create/delete while filtered updates `allSummaries` and re-triggers search

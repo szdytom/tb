@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"git.sr.ht/~rockorager/vaxis"
+	"git.sr.ht/~rockorager/vaxis/widgets/textinput"
 	"github.com/szdytom/tb/internal/buffer"
 	"github.com/szdytom/tb/internal/ipc"
 	"github.com/szdytom/tb/internal/store"
@@ -31,6 +32,7 @@ const (
 	stateLoading state = iota
 	stateBrowsing
 	stateConfirmDelete
+	stateSearch
 	stateHelp
 	stateQuitting
 )
@@ -41,6 +43,7 @@ type Client interface {
 	GetBuffer(id int64) (*buffer.Buffer, error)
 	CreateBuffer(content, label string, tags []string) (int64, error)
 	SoftDelete(id int64, ttlSeconds int) error
+	Search(query string, isRegex bool) ([]store.SearchResult, error)
 	Close() error
 }
 
@@ -68,6 +71,15 @@ type App struct {
 	// Stale load guard: increment each time a new preview is requested;
 	// async completion checks against current generation.
 	previewGen int
+
+	// Search state
+	allSummaries      []buffer.BufferSummary
+	searchInput       *textinput.Model
+	searchQuery       string // saved after commit, shown in status bar
+	searchTimer       *time.Timer
+	searchGen         int
+	savedSearchQuery  string // filter that was active when search was entered
+	savedSearchFilter []buffer.BufferSummary // summaries when search was entered
 
 	// Confirm delete
 	deletingID int64
@@ -165,7 +177,7 @@ func (a *App) draw() {
 	switch a.curState {
 	case stateLoading:
 		a.drawLoading(root)
-	case stateBrowsing, stateConfirmDelete, stateHelp:
+	case stateBrowsing, stateSearch, stateConfirmDelete, stateHelp:
 		a.drawMainView(root)
 		if a.curState == stateHelp {
 			DrawHelp(root, a.width, a.contentH)
@@ -226,9 +238,14 @@ func (a *App) drawMainView(root vaxis.Window) {
 	case a.curState == stateConfirmDelete:
 		text = " Delete this buffer? (y/N) "
 		style = confirmStyle
+	case a.curState == stateSearch:
+		a.drawSearchBar(statusWin)
+		return
 	case a.errMsg != "":
 		text = " " + a.errMsg + " "
 		style = errStyle
+	case a.searchQuery != "":
+		text = a.searchStatusText()
 	default:
 		text = " j/k:navigate  n:new  d:delete  ?:help  :q:quit "
 	}

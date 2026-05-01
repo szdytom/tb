@@ -50,12 +50,19 @@ func (a *App) handleEvent(ev vaxis.Event) {
 		a.handleBufferCreated(ev)
 	case bufferDeleted:
 		a.handleBufferDeleted(ev)
+	case searchResult:
+		a.handleSearchResult(ev)
 	case errClear:
 		a.errMsg = ""
 	case vterm.EventClosed:
 		// VT preview command finished; nothing special needed
 	case vaxis.Redraw:
 		// Triggered after SyncFunc; state already updated, just re-draw
+	case vaxis.PasteEndEvent:
+		if a.curState == stateSearch && a.searchInput != nil {
+			a.searchInput.Update(ev)
+			a.searchDebounced()
+		}
 	}
 }
 
@@ -81,6 +88,8 @@ func (a *App) handleKey(ev vaxis.Key) {
 	switch a.curState {
 	case stateBrowsing:
 		a.handleKeyBrowsing(ev)
+	case stateSearch:
+		a.handleKeySearch(ev)
 	case stateConfirmDelete:
 		a.handleKeyConfirmDelete(ev)
 	case stateHelp:
@@ -93,6 +102,12 @@ func (a *App) handleKey(ev vaxis.Key) {
 func (a *App) handleKeyBrowsing(ev vaxis.Key) {
 	if ev.String() == ":" {
 		a.awaitingColon = true
+		return
+	}
+
+	// Escape/Ctrl+c while a search filter is active → clear the filter
+	if a.searchQuery != "" && (ev.Matches(vaxis.KeyEsc) || ev.Matches('c', vaxis.ModCtrl) || ev.String() == "Escape") {
+		a.clearFilter()
 		return
 	}
 
@@ -144,6 +159,8 @@ func (a *App) handleKeyBrowsing(ev vaxis.Key) {
 		}
 	case keyHelp:
 		a.curState = stateHelp
+	case keySearch:
+		a.enterSearch()
 	case keyQuit:
 		a.quitting = true
 	}
@@ -169,6 +186,7 @@ func (a *App) handleBuffersLoaded(msg buffersLoaded) {
 		return
 	}
 	a.summaries = msg.summaries
+	a.allSummaries = msg.summaries
 	a.curState = stateBrowsing
 	if len(msg.summaries) > 0 {
 		a.loadPreviewAsync()
@@ -211,12 +229,18 @@ func (a *App) handleBufferCreated(msg bufferCreated) {
 		return
 	}
 	if msg.summary != nil {
-		a.summaries = append([]buffer.BufferSummary{*msg.summary}, a.summaries...)
-		a.cursor = 0
-		a.listOff = 0
-		a.vtPreview.Close()
-		a.vtActive = false
-		a.loadPreviewAsync()
+		summary := *msg.summary
+		a.allSummaries = append([]buffer.BufferSummary{summary}, a.allSummaries...)
+		if a.curState == stateSearch {
+			a.triggerSearch()
+		} else {
+			a.summaries = append([]buffer.BufferSummary{summary}, a.summaries...)
+			a.cursor = 0
+			a.listOff = 0
+			a.vtPreview.Close()
+			a.vtActive = false
+			a.loadPreviewAsync()
+		}
 	}
 }
 
@@ -225,20 +249,31 @@ func (a *App) handleBufferDeleted(msg bufferDeleted) {
 		a.setError(fmt.Sprintf("Failed to delete buffer: %v", msg.err))
 		return
 	}
-	for i, s := range a.summaries {
-		if s.ID == msg.id {
-			a.summaries = append(a.summaries[:i], a.summaries[i+1:]...)
-			if a.cursor >= len(a.summaries) && a.cursor > 0 {
-				a.cursor--
+
+	removeFromList := func(sl *[]buffer.BufferSummary, id int64) {
+		for i, s := range *sl {
+			if s.ID == id {
+				*sl = append((*sl)[:i], (*sl)[i+1:]...)
+				break
 			}
-			if a.listOff > a.cursor {
-				a.listOff = a.cursor
-			}
-			break
 		}
 	}
+
+	removeFromList(&a.allSummaries, msg.id)
+
+	if a.curState == stateSearch {
+		a.triggerSearch()
+	} else {
+		removeFromList(&a.summaries, msg.id)
+		if a.cursor >= len(a.summaries) && a.cursor > 0 {
+			a.cursor--
+		}
+		if a.listOff > a.cursor {
+			a.listOff = a.cursor
+		}
+	}
+
 	a.deletingID = 0
-	// Reload preview if we still have buffers
 	if len(a.summaries) > 0 {
 		a.loadPreviewAsync()
 	}
