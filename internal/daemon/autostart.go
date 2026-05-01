@@ -28,6 +28,9 @@ func Autostart(cfg *config.Config) (*ipc.Conn, error) {
 	}
 
 	cmd := exec.Command(daemonPath)
+	if configFile := config.GetCustomConfigFile(); configFile != "" {
+		cmd.Args = append(cmd.Args, "-c", configFile)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -35,7 +38,7 @@ func Autostart(cfg *config.Config) (*ipc.Conn, error) {
 		return nil, fmt.Errorf("start %s: %w", daemonPath, err)
 	}
 
-	conn, err = waitForSocket(cfg.SocketPath, autostartTimeout)
+	conn, err = WaitForSocket(cfg.SocketPath, autostartTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("daemon started but not responding: %w", err)
 	}
@@ -60,9 +63,8 @@ func FindDaemonBinary() (string, error) {
 	return "", fmt.Errorf("tmpbufferd not found in PATH or next to %s", exe)
 }
 
-// waitForSocket polls the UDS path until a dial succeeds or the
-// timeout expires.
-func waitForSocket(socketPath string, timeout time.Duration) (*ipc.Conn, error) {
+// WaitForSocket polls the UDS path until a dial succeeds or the timeout expires.
+func WaitForSocket(socketPath string, timeout time.Duration) (*ipc.Conn, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		conn, err := ipc.Dial(socketPath, 500*time.Millisecond)

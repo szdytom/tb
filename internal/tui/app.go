@@ -525,15 +525,26 @@ func (a *App) moveUp() {
 }
 
 func (a *App) clampListOff() {
+	visible := a.contentH - 1 // data rows available (header takes row 0)
+	if visible < 1 {
+		visible = 1
+	}
 	if a.cursor < a.listOff {
 		a.listOff = a.cursor
 	}
-	if a.listOff > a.cursor {
-		a.listOff = a.cursor
+	if a.cursor >= a.listOff+visible {
+		a.listOff = a.cursor - visible + 1
 	}
-	maxOff := a.cursor - a.contentH + 3
-	if a.cursor >= a.listOff+a.contentH-2 && a.contentH > 0 && maxOff > a.listOff {
-		a.listOff = maxOff
+	// Keep listOff in valid range
+	if a.listOff < 0 {
+		a.listOff = 0
+	}
+	maxListOff := len(a.summaries) - visible
+	if maxListOff < 0 {
+		maxListOff = 0
+	}
+	if a.listOff > maxListOff {
+		a.listOff = maxListOff
 	}
 }
 

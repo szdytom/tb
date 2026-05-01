@@ -88,7 +88,7 @@ func runDaemonStart() error {
 	}
 
 	// Wait for the socket to appear.
-	if _, err := waitForSocket(cfg.SocketPath, 5*time.Second); err != nil {
+	if _, err := daemon.WaitForSocket(cfg.SocketPath, 5*time.Second); err != nil {
 		printError("daemon started but not responding")
 		return err
 	}
@@ -162,19 +162,4 @@ func runDaemonStatus() error {
 
 	fmt.Fprintf(os.Stderr, "Daemon is running (PID %s)\n", pidStr)
 	return nil
-}
-
-// waitForSocket polls the UDS path until a dial succeeds or the timeout
-// expires. This is a copy of the logic in daemon/autostart.go to avoid
-// circular dependencies.
-func waitForSocket(socketPath string, timeout time.Duration) (*ipc.Conn, error) {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		conn, err := ipc.Dial(socketPath, 500*time.Millisecond)
-		if err == nil {
-			return conn, nil
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return nil, fmt.Errorf("timeout after %v", timeout)
 }

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/szdytom/tb/internal/buffer"
@@ -63,25 +64,29 @@ func (r *Repository) Get(id int64) (*buffer.Buffer, error) {
 	return scanBuffer(row)
 }
 
-// List returns active (non-trashed) buffers matching the filter, sorted and paginated.
-func (r *Repository) List(filter ListFilter) ([]*buffer.Buffer, error) {
-	query := `
-		SELECT id, label, content, line_count, byte_count, tags, created_at, updated_at, trash_status, trashed_at, expires_at
-		FROM buffers WHERE trash_status = ?`
-	args := []interface{}{buffer.TrashStatusActive}
+// buildListFilter builds the WHERE + ORDER BY + LIMIT/OFFSET clause and its args.
+// Used by both List and ListBufferSummaries.
+func (r *Repository) buildListFilter(filter ListFilter) (string, []interface{}) {
+	var clauses []string
+	var args []interface{}
+
+	clauses = append(clauses, "trash_status = ?")
+	args = append(args, buffer.TrashStatusActive)
 
 	if filter.Keyword != "" {
-		query += ` AND (content LIKE '%' || ? || '%' OR label LIKE '%' || ? || '%')`
+		clauses = append(clauses, "(content LIKE '%' || ? || '%' OR label LIKE '%' || ? || '%')")
 		args = append(args, filter.Keyword, filter.Keyword)
 	}
 	if filter.Since != nil {
-		query += ` AND updated_at >= ?`
+		clauses = append(clauses, "updated_at >= ?")
 		args = append(args, filter.Since.Format(time.RFC3339))
 	}
 	if filter.Until != nil {
-		query += ` AND updated_at <= ?`
+		clauses = append(clauses, "updated_at <= ?")
 		args = append(args, filter.Until.Format(time.RFC3339))
 	}
+
+	query := "WHERE " + strings.Join(clauses, " AND ")
 
 	// Validate sort field, default to updated_at
 	sortBy := SortByUpdatedAt
@@ -89,7 +94,6 @@ func (r *Repository) List(filter ListFilter) ([]*buffer.Buffer, error) {
 	case SortByCreatedAt, SortByLabel, SortByID, SortByUpdatedAt:
 		sortBy = filter.SortBy
 	}
-	// Default: most-recent-first (DESC) per FR-3.2.1.
 	order := "DESC"
 	if filter.SortAsc {
 		order = "ASC"
@@ -97,13 +101,23 @@ func (r *Repository) List(filter ListFilter) ([]*buffer.Buffer, error) {
 	query += fmt.Sprintf(" ORDER BY %s %s", sortBy, order)
 
 	if filter.Limit > 0 {
-		query += ` LIMIT ?`
+		query += " LIMIT ?"
 		args = append(args, filter.Limit)
 	}
 	if filter.Offset > 0 {
-		query += ` OFFSET ?`
+		query += " OFFSET ?"
 		args = append(args, filter.Offset)
 	}
+
+	return query, args
+}
+
+// List returns active (non-trashed) buffers matching the filter, sorted and paginated.
+func (r *Repository) List(filter ListFilter) ([]*buffer.Buffer, error) {
+	filterSQL, args := r.buildListFilter(filter)
+	query := `
+		SELECT id, label, content, line_count, byte_count, tags, created_at, updated_at, trash_status, trashed_at, expires_at
+		FROM buffers ` + filterSQL
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -124,44 +138,11 @@ func (r *Repository) List(filter ListFilter) ([]*buffer.Buffer, error) {
 
 // ListBufferSummaries returns light-weight summaries (no full content) for active buffers.
 func (r *Repository) ListBufferSummaries(filter ListFilter) ([]buffer.BufferSummary, error) {
+	filterSQL, args := r.buildListFilter(filter)
 	query := `
 		SELECT id, label, SUBSTR(content, 1, 80) AS preview,
 		       line_count, byte_count, tags, created_at, updated_at
-		FROM buffers WHERE trash_status = ?`
-	args := []interface{}{buffer.TrashStatusActive}
-
-	if filter.Keyword != "" {
-		query += ` AND (content LIKE '%' || ? || '%' OR label LIKE '%' || ? || '%')`
-		args = append(args, filter.Keyword, filter.Keyword)
-	}
-	if filter.Since != nil {
-		query += ` AND updated_at >= ?`
-		args = append(args, filter.Since.Format(time.RFC3339))
-	}
-	if filter.Until != nil {
-		query += ` AND updated_at <= ?`
-		args = append(args, filter.Until.Format(time.RFC3339))
-	}
-
-	sortBy := SortByUpdatedAt
-	switch filter.SortBy {
-	case SortByCreatedAt, SortByLabel, SortByID, SortByUpdatedAt:
-		sortBy = filter.SortBy
-	}
-	order := "DESC"
-	if filter.SortAsc {
-		order = "ASC"
-	}
-	query += fmt.Sprintf(" ORDER BY %s %s", sortBy, order)
-
-	if filter.Limit > 0 {
-		query += ` LIMIT ?`
-		args = append(args, filter.Limit)
-	}
-	if filter.Offset > 0 {
-		query += ` OFFSET ?`
-		args = append(args, filter.Offset)
-	}
+		FROM buffers ` + filterSQL
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {

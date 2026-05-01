@@ -97,7 +97,7 @@ func printBufferTable(bufs []*buffer.Buffer) {
 		if label == "" {
 			label = "-"
 		}
-		preview := firstLine(buf.Content)
+		preview := buffer.FirstLine(buf.Content)
 		if len(preview) > 48 {
 			preview = preview[:48] + "..."
 		}

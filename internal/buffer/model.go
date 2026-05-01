@@ -75,12 +75,17 @@ type BufferSummary struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// FirstLine returns the first line of s (text up to the first newline).
+func FirstLine(s string) string {
+	if idx := strings.IndexByte(s, '\n'); idx >= 0 {
+		return s[:idx]
+	}
+	return s
+}
+
 // NewBufferSummary creates a BufferSummary from a Buffer.
 func NewBufferSummary(b *Buffer) BufferSummary {
-	preview := b.Content
-	if idx := strings.IndexByte(b.Content, '\n'); idx >= 0 {
-		preview = b.Content[:idx]
-	}
+	preview := FirstLine(b.Content)
 	if len(preview) > 80 {
 		preview = preview[:80] + "..."
 	}

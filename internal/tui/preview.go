@@ -23,11 +23,8 @@ func NewTextPreview() *TextPreview {
 
 func (p *TextPreview) SetContent(content string) {
 	p.lines = strings.Split(content, "\n")
-	if len(p.lines) > 0 && p.vOffset >= len(p.lines) {
-		p.vOffset = len(p.lines) - p.height
-		if p.vOffset < 0 {
-			p.vOffset = 0
-		}
+	if p.vOffset >= len(p.lines) || p.vOffset < 0 {
+		p.vOffset = 0
 	}
 }
 

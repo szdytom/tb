@@ -103,8 +103,9 @@ func (a *App) handleMouse(ev vaxis.Mouse) {
 	// Forward to the editor tab if on an editor tab
 	if a.currentTab > 0 && a.curState == stateBrowsing {
 		tab := a.editorTabs[a.currentTab-1]
-		ev.Row -= 1 // tab bar is 1 row
-		tab.HandleEvent(ev)
+		e := ev
+		e.Row = ev.Row - 1 // tab bar offset
+		tab.HandleEvent(e)
 	}
 }
 
@@ -123,51 +124,10 @@ func (a *App) handleLeaderKey(ev vaxis.Key) bool {
 			a.currentTab = 0
 			a.updateTabFocus()
 			return true
-		case "2":
-			if len(a.editorTabs) >= 1 {
-				a.currentTab = 1
-				a.updateTabFocus()
-			}
-			return true
-		case "3":
-			if len(a.editorTabs) >= 2 {
-				a.currentTab = 2
-				a.updateTabFocus()
-			}
-			return true
-		case "4":
-			if len(a.editorTabs) >= 3 {
-				a.currentTab = 3
-				a.updateTabFocus()
-			}
-			return true
-		case "5":
-			if len(a.editorTabs) >= 4 {
-				a.currentTab = 4
-				a.updateTabFocus()
-			}
-			return true
-		case "6":
-			if len(a.editorTabs) >= 5 {
-				a.currentTab = 5
-				a.updateTabFocus()
-			}
-			return true
-		case "7":
-			if len(a.editorTabs) >= 6 {
-				a.currentTab = 6
-				a.updateTabFocus()
-			}
-			return true
-		case "8":
-			if len(a.editorTabs) >= 7 {
-				a.currentTab = 7
-				a.updateTabFocus()
-			}
-			return true
-		case "9":
-			if len(a.editorTabs) >= 8 {
-				a.currentTab = 8
+		case "2", "3", "4", "5", "6", "7", "8", "9":
+			idx := int(ev.String()[0] - '1') // "2" → 1 (first editor tab)
+			if idx <= len(a.editorTabs) {
+				a.currentTab = idx
 				a.updateTabFocus()
 			}
 			return true

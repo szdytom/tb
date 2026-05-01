@@ -159,6 +159,11 @@ func (c *Config) EnsureDirs() error {
 	return nil
 }
 
+// GetCustomConfigFile returns the custom config file path set via SetConfigFile, or empty.
+func GetCustomConfigFile() string {
+	return customConfigFile
+}
+
 // PidFilePath returns the path to the daemon PID file.
 func (c *Config) PidFilePath() string {
 	return filepath.Join(c.SocketDir, "tmpbuffer.pid")
