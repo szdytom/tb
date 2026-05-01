@@ -2,6 +2,7 @@ package tui
 
 import (
 	"git.sr.ht/~rockorager/vaxis"
+	"git.sr.ht/~rockorager/vaxis/widgets/border"
 )
 
 func DrawHelp(root vaxis.Window, screenW, screenH int) {
@@ -46,33 +47,8 @@ func DrawHelp(root vaxis.Window, screenW, screenH int) {
 	box.Fill(vaxis.Cell{
 		Character: vaxis.Character{Grapheme: " ", Width: 1},
 	})
-
-	drawBoxBorder(box, vaxis.Style{Attribute: vaxis.AttrBold})
-
+	inner := border.All(box, vaxis.Style{Attribute: vaxis.AttrBold})
 	for i, line := range lines {
-		box.PrintTruncate(pad+1+i, vaxis.Segment{Text: line})
-	}
-}
-
-func drawBoxBorder(win vaxis.Window, style vaxis.Style) {
-	w, h := win.Size()
-	win.SetCell(0, 0, cell('┌', style))
-	win.SetCell(w-1, 0, cell('┐', style))
-	win.SetCell(0, h-1, cell('└', style))
-	win.SetCell(w-1, h-1, cell('┘', style))
-	for x := 1; x < w-1; x++ {
-		win.SetCell(x, 0, cell('─', style))
-		win.SetCell(x, h-1, cell('─', style))
-	}
-	for y := 1; y < h-1; y++ {
-		win.SetCell(0, y, cell('│', style))
-		win.SetCell(w-1, y, cell('│', style))
-	}
-}
-
-func cell(grapheme rune, style vaxis.Style) vaxis.Cell {
-	return vaxis.Cell{
-		Character: vaxis.Character{Grapheme: string(grapheme), Width: 1},
-		Style:     style,
+		inner.Println(i+pad, vaxis.Segment{Text: line})
 	}
 }

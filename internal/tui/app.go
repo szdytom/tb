@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"git.sr.ht/~rockorager/vaxis"
+	"git.sr.ht/~rockorager/vaxis/widgets/border"
 	"git.sr.ht/~rockorager/vaxis/widgets/textinput"
 	"github.com/szdytom/tb/internal/buffer"
 	"github.com/szdytom/tb/internal/editor"
@@ -328,8 +329,8 @@ func (a *App) drawEditorExitConfirm(root vaxis.Window) {
 	box.Fill(vaxis.Cell{
 		Character: vaxis.Character{Grapheme: " ", Width: 1},
 	})
-	drawBoxBorder(box, confirmStyle)
-	box.PrintTruncate(1, vaxis.Segment{Text: msg, Style: confirmStyle})
+	inner := border.All(box, confirmStyle)
+	inner.Println(0, vaxis.Segment{Text: msg, Style: confirmStyle})
 }
 
 // ── Tab switching ─────────────────────────────────────────────────────────

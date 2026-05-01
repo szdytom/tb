@@ -126,7 +126,7 @@ func runDaemonStop() error {
 	}
 
 	// Wait for the socket to disappear.
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		if _, err := os.Stat(cfg.SocketPath); os.IsNotExist(err) {
 			break
 		}
