@@ -9,17 +9,21 @@ import (
 
 func TestRequestMarshal(t *testing.T) {
 	req := ipc.NewRequest(1, ipc.OpPing, nil)
+
 	b, err := json.Marshal(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var decoded ipc.Request
 	if err := json.Unmarshal(b, &decoded); err != nil {
 		t.Fatal(err)
 	}
+
 	if decoded.ID != 1 {
 		t.Errorf("ID = %d, want 1", decoded.ID)
 	}
+
 	if decoded.Op != ipc.OpPing {
 		t.Errorf("Op = %q, want %q", decoded.Op, ipc.OpPing)
 	}
@@ -31,10 +35,12 @@ func TestRequestMarshalWithPayload(t *testing.T) {
 		Label:   "test",
 		Tags:    []string{"a"},
 	})
+
 	b, err := json.Marshal(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var decoded struct {
 		ID      int64           `json:"id"`
 		Op      ipc.Op          `json:"op"`
@@ -43,10 +49,12 @@ func TestRequestMarshalWithPayload(t *testing.T) {
 	if err := json.Unmarshal(b, &decoded); err != nil {
 		t.Fatal(err)
 	}
+
 	var p ipc.CreateBufferPayload
 	if err := json.Unmarshal(decoded.Payload, &p); err != nil {
 		t.Fatal(err)
 	}
+
 	if p.Content != "hello" || p.Label != "test" || len(p.Tags) != 1 || p.Tags[0] != "a" {
 		t.Errorf("payload = %+v, want Content=hello Label=test Tags=[a]", p)
 	}
@@ -54,10 +62,12 @@ func TestRequestMarshalWithPayload(t *testing.T) {
 
 func TestResponseMarshalSuccess(t *testing.T) {
 	resp := ipc.OKResponse(3, ipc.PingResponse{Message: "pong"})
+
 	b, err := json.Marshal(resp)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var decoded struct {
 		ID      int64           `json:"id"`
 		Ok      bool            `json:"ok"`
@@ -67,6 +77,7 @@ func TestResponseMarshalSuccess(t *testing.T) {
 	if err := json.Unmarshal(b, &decoded); err != nil {
 		t.Fatal(err)
 	}
+
 	if decoded.ID != 3 || !decoded.Ok || decoded.Error != "" {
 		t.Errorf("unexpected fields: id=%d ok=%v error=%q", decoded.ID, decoded.Ok, decoded.Error)
 	}
@@ -74,14 +85,17 @@ func TestResponseMarshalSuccess(t *testing.T) {
 
 func TestResponseMarshalError(t *testing.T) {
 	resp := ipc.ErrorResponse(4, "something went wrong")
+
 	b, err := json.Marshal(resp)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var decoded ipc.Response
 	if err := json.Unmarshal(b, &decoded); err != nil {
 		t.Fatal(err)
 	}
+
 	if decoded.ID != 4 || decoded.Ok || decoded.Error != "something went wrong" {
 		t.Errorf("unexpected fields: id=%d ok=%v error=%q", decoded.ID, decoded.Ok, decoded.Error)
 	}
@@ -90,7 +104,7 @@ func TestResponseMarshalError(t *testing.T) {
 func TestPayloadRoundTrips(t *testing.T) {
 	tests := []struct {
 		name    string
-		payload interface{}
+		payload any
 	}{
 		{"CreateBufferPayload", ipc.CreateBufferPayload{Content: "c", Label: "l", Tags: []string{"t"}}},
 		{"IDPayload", ipc.IDPayload{ID: 42}},
@@ -117,18 +131,21 @@ func TestPayloadRoundTrips(t *testing.T) {
 				if err := json.Unmarshal(b, &v); err != nil {
 					t.Fatal(err)
 				}
+
 				if v.Content != p.Content || v.Label != p.Label {
 					t.Errorf("got %+v, want %+v", v, p)
 				}
 			case ipc.IDPayload:
 				var v ipc.IDPayload
 				json.Unmarshal(b, &v)
+
 				if v.ID != p.ID {
 					t.Errorf("got %+v, want %+v", v, p)
 				}
 			case ipc.CountResponse:
 				var v ipc.CountResponse
 				json.Unmarshal(b, &v)
+
 				if v.Count != p.Count {
 					t.Errorf("got %+v, want %+v", v, p)
 				}

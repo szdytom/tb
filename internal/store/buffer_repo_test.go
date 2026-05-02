@@ -12,17 +12,21 @@ import (
 
 func openTestDB(t *testing.T) *store.DB {
 	t.Helper()
+
 	dir, err := os.MkdirTemp("", "tmpbuffer-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(func() { os.RemoveAll(dir) })
 
 	db, err := store.Open(filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
+
 	t.Cleanup(func() { db.Close() })
+
 	return db
 }
 
@@ -31,13 +35,16 @@ func TestInsert(t *testing.T) {
 	repo := store.NewRepository(db)
 
 	buf := buffer.NewBuffer("hello world", "test-label", []string{"tag1", "tag2"})
+
 	id, err := repo.Insert(buf)
 	if err != nil {
 		t.Fatalf("insert: %v", err)
 	}
+
 	if id == 0 {
 		t.Fatal("expected non-zero ID")
 	}
+
 	if buf.ID != 0 {
 		t.Fatal("should not modify the original buffer's ID")
 	}
@@ -49,6 +56,7 @@ func TestGet(t *testing.T) {
 
 	// Insert a buffer and retrieve it.
 	orig := buffer.NewBuffer("content", "label", nil)
+
 	id, err := repo.Insert(orig)
 	if err != nil {
 		t.Fatalf("insert: %v", err)
@@ -58,18 +66,23 @@ func TestGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
+
 	if got.ID != id {
 		t.Errorf("ID = %d, want %d", got.ID, id)
 	}
+
 	if got.Label != "label" {
 		t.Errorf("Label = %q, want %q", got.Label, "label")
 	}
+
 	if got.Content != "content" {
 		t.Errorf("Content = %q, want %q", got.Content, "content")
 	}
+
 	if got.Metadata.ByteCount != len("content") {
 		t.Errorf("ByteCount = %d, want %d", got.Metadata.ByteCount, len("content"))
 	}
+
 	if got.TrashStatus != buffer.TrashStatusActive {
 		t.Errorf("TrashStatus = %d, want %d", got.TrashStatus, buffer.TrashStatusActive)
 	}
@@ -90,10 +103,11 @@ func TestList(t *testing.T) {
 	repo := store.NewRepository(db)
 
 	// Insert three buffers.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		buf := buffer.NewBuffer("content", "", nil)
 		// Stagger creation times.
 		time.Sleep(time.Millisecond)
+
 		if _, err := repo.Insert(buf); err != nil {
 			t.Fatalf("insert %d: %v", i, err)
 		}
@@ -103,6 +117,7 @@ func TestList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
+
 	if len(bufs) != 3 {
 		t.Fatalf("got %d buffers, want 3", len(bufs))
 	}
@@ -125,6 +140,7 @@ func TestListFilterKeyword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
+
 	if len(bufs) != 2 {
 		t.Fatalf("got %d results for 'banana', want 2", len(bufs))
 	}
@@ -136,21 +152,24 @@ func TestListFilterTimeRange(t *testing.T) {
 
 	old := buffer.NewBuffer("old", "", nil)
 	old.CreatedAt = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+
 	old.UpdatedAt = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	if _, err := repo.Insert(old); err != nil {
 		t.Fatal(err)
 	}
 
-	new := buffer.NewBuffer("new", "", nil)
-	if _, err := repo.Insert(new); err != nil {
+	buf := buffer.NewBuffer("new", "", nil)
+	if _, err := repo.Insert(buf); err != nil {
 		t.Fatal(err)
 	}
 
 	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
 	bufs, err := repo.List(store.ListFilter{Since: &since})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
+
 	if len(bufs) != 1 {
 		t.Fatalf("expected 1 buffer after 2025, got %d", len(bufs))
 	}
@@ -169,9 +188,11 @@ func TestListSortAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
+
 	if len(bufs) < 3 {
 		t.Fatal("expected at least 3 buffers")
 	}
+
 	if bufs[0].Label != "a" || bufs[2].Label != "c" {
 		t.Errorf("expected a→c sorted ascending, got %q→%q", bufs[0].Label, bufs[2].Label)
 	}
@@ -181,6 +202,7 @@ func TestListSortAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
+
 	if len(bufs) != 2 {
 		t.Fatalf("expected 2 buffers with limit, got %d", len(bufs))
 	}
@@ -200,6 +222,7 @@ func TestUpdateContent(t *testing.T) {
 	if got.Content != "modified content" {
 		t.Errorf("Content = %q, want %q", got.Content, "modified content")
 	}
+
 	if got.Metadata.ByteCount != len("modified content") {
 		t.Errorf("ByteCount = %d, want %d", got.Metadata.ByteCount, len("modified content"))
 	}
@@ -214,6 +237,7 @@ func TestUpdateLabelAndTags(t *testing.T) {
 	if err := repo.UpdateLabel(id, "new"); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := repo.UpdateTags(id, []string{"x", "y"}); err != nil {
 		t.Fatal(err)
 	}
@@ -222,6 +246,7 @@ func TestUpdateLabelAndTags(t *testing.T) {
 	if got.Label != "new" {
 		t.Errorf("Label = %q, want %q", got.Label, "new")
 	}
+
 	if len(got.Tags) != 2 || got.Tags[0] != "x" {
 		t.Errorf("Tags = %v, want [x y]", got.Tags)
 	}
@@ -248,9 +273,11 @@ func TestSoftDeleteAndRestore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list trash: %v", err)
 	}
+
 	if len(trash) != 1 {
 		t.Fatalf("expected 1 trashed buffer, got %d", len(trash))
 	}
+
 	if trash[0].ID != id {
 		t.Errorf("trashed buffer ID = %d, want %d", trash[0].ID, id)
 	}
@@ -318,6 +345,7 @@ func TestDeleteExpiredTrash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("delete expired trash: %v", err)
 	}
+
 	if n != 0 {
 		t.Errorf("expected 0 expired entries, got %d", n)
 	}
@@ -335,11 +363,14 @@ func TestDeleteExpiredTrash(t *testing.T) {
 
 func TestWALMode(t *testing.T) {
 	db := openTestDB(t)
+
 	var mode string
+
 	err := db.QueryRow("PRAGMA journal_mode").Scan(&mode)
 	if err != nil {
 		t.Fatalf("read journal mode: %v", err)
 	}
+
 	if mode != "wal" && mode != "WAL" {
 		t.Errorf("journal mode = %q, want WAL", mode)
 	}

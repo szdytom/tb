@@ -14,14 +14,16 @@ import (
 // It is called by Run() and may also be called directly for testing.
 func (d *Daemon) Serve() error {
 	// Remove stale socket file from previous run.
-	os.Remove(d.cfg.SocketPath)
+	_ = os.Remove(d.cfg.SocketPath)
 
 	ln, err := net.Listen("unix", d.cfg.SocketPath)
 	if err != nil {
 		return err
 	}
+
 	if err := os.Chmod(d.cfg.SocketPath, 0600); err != nil {
-		ln.Close()
+		_ = ln.Close()
+
 		return err
 	}
 
@@ -29,6 +31,7 @@ func (d *Daemon) Serve() error {
 	log.Printf("IPC server listening on %s", d.cfg.SocketPath)
 
 	go d.acceptLoop(ln)
+
 	return nil
 }
 
@@ -41,10 +44,14 @@ func (d *Daemon) acceptLoop(ln net.Listener) {
 			if errors.Is(err, net.ErrClosed) {
 				return
 			}
+
 			log.Printf("accept: %v", err)
+
 			continue
 		}
+
 		d.wg.Add(1)
+
 		go d.handleConn(conn)
 	}
 }
@@ -63,13 +70,16 @@ func (d *Daemon) handleConn(conn net.Conn) {
 			if errors.Is(err, io.EOF) {
 				return
 			}
+
 			log.Printf("read request: %v", err)
+
 			return
 		}
 
 		resp := d.dispatch(&req)
 		if err := c.Send(resp); err != nil {
 			log.Printf("write response: %v", err)
+
 			return
 		}
 	}

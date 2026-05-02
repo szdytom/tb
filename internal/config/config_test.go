@@ -8,6 +8,7 @@ import (
 
 func TestDefaultHasDefaults(t *testing.T) {
 	ResetForTesting()
+
 	cfg := Default()
 
 	if cfg.TrashTTL != 86400 {
@@ -43,17 +44,21 @@ json = "code --wait"
 	}
 
 	ResetForTesting()
+
 	cfg := Default()
 
 	if cfg.Editor != "nano" {
 		t.Errorf("expected editor 'nano', got %q", cfg.Editor)
 	}
+
 	if cfg.PreviewCommand != "bat --color=always" {
 		t.Errorf("expected preview_command 'bat --color=always', got %q", cfg.PreviewCommand)
 	}
+
 	if cfg.TimeFormat != TimeFormatAbsolute {
 		t.Errorf("expected time_format absolute, got %d", cfg.TimeFormat)
 	}
+
 	if cfg.TrashTTL != 3600 {
 		t.Errorf("expected trash_ttl 3600, got %d", cfg.TrashTTL)
 	}
@@ -76,9 +81,11 @@ func TestEnvOverridesFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	t.Setenv("EDITOR", "vim")
 
 	ResetForTesting()
+
 	cfg := Default()
 
 	if cfg.Editor != "vim" {
@@ -102,9 +109,11 @@ func TestEnvVISUALOverridesFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	t.Setenv("VISUAL", "helix")
 
 	ResetForTesting()
+
 	cfg := Default()
 
 	if cfg.Editor != "helix" {
@@ -119,11 +128,13 @@ func TestEnvOverridesDefault(t *testing.T) {
 	t.Setenv("TB_TIME_FORMAT", "absolute")
 
 	ResetForTesting()
+
 	cfg := Default()
 
 	if cfg.PreviewCommand != "bat --color=always" {
 		t.Errorf("expected preview_command 'bat --color=always', got %q", cfg.PreviewCommand)
 	}
+
 	if cfg.TimeFormat != TimeFormatAbsolute {
 		t.Errorf("expected time_format absolute, got %d", cfg.TimeFormat)
 	}
@@ -134,6 +145,7 @@ func TestMissingFileIsOK(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", dir)
 
 	ResetForTesting()
+
 	cfg := Default()
 
 	// Should not panic or error, all fields should be defaults.
@@ -153,6 +165,7 @@ func TestCaching(t *testing.T) {
 	if cfg1.TrashTTL != cfg2.TrashTTL {
 		t.Errorf("cached TrashTTL mismatch: %d vs %d", cfg1.TrashTTL, cfg2.TrashTTL)
 	}
+
 	if cfg1.Editor != cfg2.Editor {
 		t.Errorf("cached Editor mismatch: %q vs %q", cfg1.Editor, cfg2.Editor)
 	}
@@ -163,6 +176,7 @@ func TestResetForTesting(t *testing.T) {
 	t.Setenv("VISUAL", "")
 
 	ResetForTesting()
+
 	cfg := Default()
 
 	if cfg.Editor != "vim" {
@@ -172,6 +186,7 @@ func TestResetForTesting(t *testing.T) {
 	// Reset and call again — verify Reset doesn't panic
 	// and returns a valid config.
 	ResetForTesting()
+
 	cfg2 := Default()
 	_ = cfg2
 }
@@ -185,6 +200,7 @@ func TestCustomConfigFile(t *testing.T) {
 	t.Setenv("TB_TIME_FORMAT", "")
 
 	customPath := filepath.Join(dir, "myconfig.toml")
+
 	content := `editor = "custom-editor"`
 	if err := os.WriteFile(customPath, []byte(content), 0600); err != nil {
 		t.Fatal(err)
@@ -192,6 +208,7 @@ func TestCustomConfigFile(t *testing.T) {
 
 	ResetForTesting()
 	SetConfigFile(customPath)
+
 	cfg := Default()
 
 	if cfg.Editor != "custom-editor" {
@@ -214,6 +231,7 @@ func TestMalformedFileIsOK(t *testing.T) {
 	}
 
 	ResetForTesting()
+
 	cfg := Default()
 
 	if cfg.TrashTTL != 86400 {

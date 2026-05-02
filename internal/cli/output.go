@@ -7,10 +7,10 @@ import (
 )
 
 // printJSON writes v as indented JSON to stdout.
-func printJSON(v interface{}) {
+func printJSON(v any) {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	enc.Encode(v)
+	_ = enc.Encode(v)
 }
 
 // printError prints an error message to stderr.
@@ -21,5 +21,6 @@ func printError(msg string) {
 // isStdinTerminal returns true if stdin is a terminal (not a pipe).
 func isStdinTerminal() bool {
 	fi, _ := os.Stdin.Stat()
+
 	return (fi.Mode() & os.ModeCharDevice) != 0
 }

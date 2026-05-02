@@ -30,15 +30,18 @@ func DrawHelp(root vaxis.Window, screenW, screenH int) {
 			contentW = len(l)
 		}
 	}
+
 	pad := 2
 	boxW := contentW + pad*2 + 2
 	boxH := len(lines) + pad*2 + 2
 
 	x := (screenW - boxW) / 2
 	y := (screenH - boxH) / 2
+
 	if x < 0 {
 		x = 0
 	}
+
 	if y < 0 {
 		y = 0
 	}
@@ -47,6 +50,7 @@ func DrawHelp(root vaxis.Window, screenW, screenH int) {
 	box.Fill(vaxis.Cell{
 		Character: vaxis.Character{Grapheme: " ", Width: 1},
 	})
+
 	inner := border.All(box, vaxis.Style{Attribute: vaxis.AttrBold})
 	for i, line := range lines {
 		inner.Println(i+pad, vaxis.Segment{Text: line})

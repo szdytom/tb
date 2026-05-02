@@ -16,14 +16,12 @@ import (
 // ── Styles ────────────────────────────────────────────────────────────────
 
 var (
-	topBarStyle   = vaxis.Style{Attribute: vaxis.AttrBold}
-	errStyle      = vaxis.Style{Foreground: vaxis.IndexColor(9)}
-	confirmStyle  = vaxis.Style{Foreground: vaxis.IndexColor(11)}
-	selectedStyle = vaxis.Style{Attribute: vaxis.AttrReverse}
-	headerStyle   = vaxis.Style{Attribute: vaxis.AttrBold}
-	emptyStyle    = vaxis.Style{Foreground: vaxis.IndexColor(240), Attribute: vaxis.AttrItalic}
-	gutterStyle   = vaxis.Style{Foreground: vaxis.IndexColor(240)}
-	divStyle      = vaxis.Style{Foreground: vaxis.IndexColor(240)}
+	errStyle     = vaxis.Style{Foreground: vaxis.IndexColor(9)}
+	confirmStyle = vaxis.Style{Foreground: vaxis.IndexColor(11)}
+	headerStyle  = vaxis.Style{Attribute: vaxis.AttrBold}
+	emptyStyle   = vaxis.Style{Foreground: vaxis.IndexColor(240), Attribute: vaxis.AttrItalic}
+	gutterStyle  = vaxis.Style{Foreground: vaxis.IndexColor(240)}
+	divStyle     = vaxis.Style{Foreground: vaxis.IndexColor(240)}
 )
 
 // ── TUI App ──────────────────────────────────────────────────────────────
@@ -48,7 +46,7 @@ type Client interface {
 	UpdateContent(id int64, content string) error
 	SoftDelete(id int64, ttlSeconds int) error
 	Search(query string, mode string) ([]store.SearchResult, error)
-	Close() error
+	Close()
 }
 
 // App holds all state for the vaxis-based TUI.
@@ -152,18 +150,22 @@ func (a *App) Run() error {
 
 	for ev := range vx.Events() {
 		a.handleEvent(ev)
+
 		if a.quitting {
 			break
 		}
+
 		a.draw()
 		vx.Render()
 	}
 
 	// Cleanup
 	a.vtPreview.Close()
+
 	for _, tab := range a.editorTabs {
 		tab.Close()
 	}
+
 	a.editorTabs = nil
 
 	return nil
@@ -172,27 +174,23 @@ func (a *App) Run() error {
 // ── Layout calculations ───────────────────────────────────────────────────
 
 func (a *App) recalcLayout() {
-	a.listW = a.width * 40 / 100
-	if a.listW < 30 {
-		a.listW = 30
-	}
+	a.listW = max(a.width*40/100, 30)
 	// Ensure listW doesn't consume the whole width; leave room for divider + preview
 	maxList := a.width - 2
 	if a.listW > maxList {
 		a.listW = maxList
 	}
-	a.previewW = a.width - a.listW - 1
-	if a.previewW < 1 {
-		a.previewW = 1
-	}
-	a.contentH = a.height - 2
-	if a.contentH < 1 {
-		a.contentH = 1
-	}
+
+	a.previewW = max(a.width-a.listW-1, 1)
+
+	a.contentH = max(a.height-2, 1)
+
 	a.textPreview.SetSize(a.previewW, a.contentH)
+
 	if a.vtActive {
 		a.vtPreview.Resize(a.previewW, a.contentH)
 	}
+
 	for _, tab := range a.editorTabs {
 		tab.Resize(a.width, a.contentH)
 	}
@@ -209,14 +207,17 @@ func (a *App) draw() {
 		a.drawLoading(root)
 	case stateBrowsing, stateSearch, stateConfirmDelete, stateHelp, stateEditorExitConfirm:
 		a.drawTabBar(root)
+
 		if a.currentTab == 0 {
 			a.drawMainView(root)
 		} else {
 			a.drawEditorContent(root)
 		}
+
 		if a.curState == stateHelp {
 			DrawHelp(root, a.width, a.contentH)
 		}
+
 		if a.curState == stateEditorExitConfirm {
 			a.drawEditorExitConfirm(root)
 		}
@@ -226,10 +227,8 @@ func (a *App) draw() {
 }
 
 func (a *App) drawLoading(root vaxis.Window) {
-	row := a.height / 2
-	if row < 0 {
-		row = 0
-	}
+	row := max(a.height/2, 0)
+
 	win := root.New(0, row, a.width, 1)
 	win.Println(0, vaxis.Segment{Text: "Loading buffers..."})
 }
@@ -243,6 +242,7 @@ func (a *App) drawMainView(root vaxis.Window) {
 
 	// Divider
 	divWin := root.New(a.listW, 1, 1, a.contentH)
+
 	wDiv, hDiv := divWin.Size()
 	for y := 0; y < hDiv && y < wDiv; y++ {
 		divWin.SetCell(0, y, vaxis.Cell{
@@ -263,14 +263,19 @@ func (a *App) drawMainView(root vaxis.Window) {
 
 	// Status bar
 	statusWin := root.New(0, a.height-1, a.width, 1)
-	var text string
-	var style vaxis.Style
+
+	var (
+		text  string
+		style vaxis.Style
+	)
+
 	switch {
 	case a.curState == stateConfirmDelete:
 		text = " Delete this buffer? (y/N) "
 		style = confirmStyle
 	case a.curState == stateSearch:
 		a.drawSearchBar(statusWin)
+
 		return
 	case a.errMsg != "":
 		text = " " + a.errMsg + " "
@@ -280,6 +285,7 @@ func (a *App) drawMainView(root vaxis.Window) {
 	default:
 		text = " j/k:navigate  n:new  d:delete  ?:help  :q:quit "
 	}
+
 	statusWin.PrintTruncate(0, vaxis.Segment{Text: text, Style: style})
 }
 
@@ -289,14 +295,19 @@ func (a *App) drawEditorContent(root vaxis.Window) {
 	if a.currentTab < 1 || a.currentTab > len(a.editorTabs) {
 		return
 	}
+
 	tab := a.editorTabs[a.currentTab-1]
 	pane := root.New(0, 1, a.width, a.contentH)
 	tab.Draw(pane)
 
 	// Status bar (same position as in drawMainView)
 	statusWin := root.New(0, a.height-1, a.width, 1)
-	var text string
-	var style vaxis.Style
+
+	var (
+		text  string
+		style vaxis.Style
+	)
+
 	switch {
 	case a.curState == stateEditorExitConfirm:
 		return // confirm dialog covers this
@@ -309,6 +320,7 @@ func (a *App) drawEditorContent(root vaxis.Window) {
 	default:
 		text = " C-b:leader  <n>:switch tab (1:list 2-9:editor) "
 	}
+
 	statusWin.PrintTruncate(0, vaxis.Segment{Text: text, Style: style})
 }
 
@@ -319,12 +331,15 @@ func (a *App) drawEditorExitConfirm(root vaxis.Window) {
 	boxH := 3
 	x := (a.width - boxW) / 2
 	y := (a.contentH-boxH)/2 + 1
+
 	if x < 0 {
 		x = 0
 	}
+
 	if y < 1 {
 		y = 1
 	}
+
 	box := root.New(x, y, boxW, boxH)
 	box.Fill(vaxis.Cell{
 		Character: vaxis.Character{Grapheme: " ", Width: 1},
@@ -347,17 +362,21 @@ func (a *App) tabAtX(col int) int {
 	if col >= x && col < x+w {
 		return 0
 	}
+
 	x += w
 	// Editor tabs
 	for i := range a.editorTabs {
 		x += 1 // separator
 		title := a.editorTabs[i].Title()
+
 		w = len(" " + title + "  ")
 		if col >= x && col < x+w {
 			return i + 1
 		}
+
 		x += w
 	}
+
 	return -1
 }
 
@@ -369,6 +388,7 @@ func (a *App) updateTabFocus() {
 			tab.Blur()
 		}
 	}
+
 	if a.currentTab == 0 {
 		// Hide cursor in the list tab
 		a.vx.HideCursor()
@@ -386,6 +406,7 @@ func (a *App) startEditorAsync() {
 	if len(a.summaries) == 0 {
 		return
 	}
+
 	id := a.summaries[a.cursor].ID
 
 	// Switch to existing tab if already open for this buffer
@@ -393,6 +414,7 @@ func (a *App) startEditorAsync() {
 		if tab.BufferID == id {
 			a.currentTab = i + 1
 			a.updateTabFocus()
+
 			return
 		}
 	}
@@ -401,13 +423,17 @@ func (a *App) startEditorAsync() {
 		buf, err := a.client.GetBuffer(id)
 		if err != nil {
 			a.vx.PostEvent(editorStarted{err: err})
+
 			return
 		}
+
 		tab, err := NewEditorTab(id, buf.Content, a.editorCmd)
 		if err != nil {
 			a.vx.PostEvent(editorStarted{err: err})
+
 			return
 		}
+
 		a.vx.PostEvent(editorStarted{tab: tab})
 	}()
 }
@@ -428,10 +454,12 @@ func (a *App) loadPreviewAsync() {
 	if len(a.summaries) == 0 {
 		return
 	}
+
 	id := a.summaries[a.cursor].ID
 	a.previewGen++
 
 	gen := a.previewGen
+
 	go func() {
 		buf, err := a.client.GetBuffer(id)
 		a.vx.PostEvent(contentLoaded{
@@ -448,13 +476,17 @@ func (a *App) createBufferAsync() {
 		id, err := a.client.CreateBuffer("", "", nil)
 		if err != nil {
 			a.vx.PostEvent(bufferCreated{err: err})
+
 			return
 		}
+
 		buf, err := a.client.GetBuffer(id)
 		if err != nil {
 			a.vx.PostEvent(bufferCreated{err: err})
+
 			return
 		}
+
 		s := buffer.NewBufferSummary(buf)
 		a.vx.PostEvent(bufferCreated{summary: &s})
 	}()
@@ -474,6 +506,7 @@ func (a *App) startVTPreview(content string) {
 	a.vtActive = false
 
 	w := a.previewW
+
 	h := a.contentH
 	if w < 1 || h < 1 {
 		return
@@ -483,6 +516,7 @@ func (a *App) startVTPreview(content string) {
 	if cmdStr == "" {
 		cmdStr = "cat"
 	}
+
 	err := a.vtPreview.Start(
 		content,
 		cmdStr,
@@ -493,6 +527,7 @@ func (a *App) startVTPreview(content string) {
 		// Fall through to text preview
 		return
 	}
+
 	a.vtActive = true
 }
 
@@ -503,6 +538,7 @@ func (a *App) setError(msg string) {
 	if a.errTimer != nil {
 		a.errTimer.Stop()
 	}
+
 	a.errTimer = time.AfterFunc(2*time.Second, func() {
 		a.vx.PostEvent(errClear{})
 	})
@@ -514,6 +550,7 @@ func (a *App) moveDown() {
 	if a.cursor < len(a.summaries)-1 {
 		a.cursor++
 		a.clampListOff()
+		a.loadPreviewAsync()
 	}
 }
 
@@ -521,17 +558,35 @@ func (a *App) moveUp() {
 	if a.cursor > 0 {
 		a.cursor--
 		a.clampListOff()
+		a.loadPreviewAsync()
 	}
 }
 
+func (a *App) movePageDown() {
+	step := max(a.contentH-1, 1)
+	a.cursor += step
+	a.clampCursor()
+	a.clampListOff()
+	a.loadPreviewAsync()
+}
+
+func (a *App) movePageUp() {
+	step := max(a.contentH-1, 1)
+	a.cursor -= step
+	a.clampCursor()
+	a.clampListOff()
+	a.loadPreviewAsync()
+}
+
 func (a *App) clampListOff() {
-	visible := a.contentH - 1 // data rows available (header takes row 0)
-	if visible < 1 {
-		visible = 1
-	}
+	visible := max(
+		// data rows available (header takes row 0)
+		a.contentH-1, 1)
+
 	if a.cursor < a.listOff {
 		a.listOff = a.cursor
 	}
+
 	if a.cursor >= a.listOff+visible {
 		a.listOff = a.cursor - visible + 1
 	}
@@ -539,10 +594,9 @@ func (a *App) clampListOff() {
 	if a.listOff < 0 {
 		a.listOff = 0
 	}
-	maxListOff := len(a.summaries) - visible
-	if maxListOff < 0 {
-		maxListOff = 0
-	}
+
+	maxListOff := max(len(a.summaries)-visible, 0)
+
 	if a.listOff > maxListOff {
 		a.listOff = maxListOff
 	}
@@ -552,6 +606,7 @@ func (a *App) clampCursor() {
 	if a.cursor < 0 {
 		a.cursor = 0
 	}
+
 	if len(a.summaries) > 0 && a.cursor >= len(a.summaries) {
 		a.cursor = len(a.summaries) - 1
 	}

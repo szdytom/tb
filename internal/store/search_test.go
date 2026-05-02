@@ -19,9 +19,11 @@ func TestSearchLiteral(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
+
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
+
 	if results[0].Buffer.Label != "a" {
 		t.Errorf("expected label 'a', got %q", results[0].Buffer.Label)
 	}
@@ -37,6 +39,7 @@ func TestSearchLiteralCaseInsensitive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
+
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
@@ -54,6 +57,7 @@ func TestSearchLiteralMultiMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
+
 	if len(results) != 2 {
 		t.Fatalf("expected 2 results for 'def', got %d", len(results))
 	}
@@ -69,6 +73,7 @@ func TestSearchLiteralNoMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
+
 	if len(results) != 0 {
 		t.Fatalf("expected 0 results, got %d", len(results))
 	}
@@ -86,6 +91,7 @@ func TestSearchRegex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("regex search: %v", err)
 	}
+
 	if len(results) != 1 {
 		t.Fatalf("expected 1 regex match, got %d", len(results))
 	}
@@ -101,6 +107,7 @@ func TestSearchRegexNoMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("regex search: %v", err)
 	}
+
 	if len(results) != 0 {
 		t.Fatalf("expected 0 results, got %d", len(results))
 	}
@@ -130,6 +137,7 @@ func TestSearchSnippet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
+
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
@@ -138,6 +146,7 @@ func TestSearchSnippet(t *testing.T) {
 	if len(snippet) == 0 {
 		t.Fatal("expected non-empty snippet")
 	}
+
 	if len(snippet) >= len(content) {
 		t.Logf("snippet covers full content (length %d)", len(snippet))
 	}
@@ -154,6 +163,7 @@ func TestSearchIgnoresTrashed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
+
 	if len(results) != 0 {
 		t.Fatalf("expected 0 results from trashed buffer, got %d", len(results))
 	}
@@ -171,6 +181,7 @@ func TestSearchFuzzy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fuzzy search: %v", err)
 	}
+
 	if len(results) != 1 {
 		t.Fatalf("expected 1 fuzzy match, got %d", len(results))
 	}
@@ -186,6 +197,7 @@ func TestSearchFuzzyCaseInsensitive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fuzzy search: %v", err)
 	}
+
 	if len(results) != 1 {
 		t.Fatalf("expected 1 fuzzy match, got %d", len(results))
 	}
@@ -201,6 +213,7 @@ func TestSearchFuzzyNoMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fuzzy search: %v", err)
 	}
+
 	if len(results) != 0 {
 		t.Fatalf("expected 0 fuzzy results, got %d", len(results))
 	}
@@ -208,9 +221,11 @@ func TestSearchFuzzyNoMatch(t *testing.T) {
 
 func makeBuffer(t *testing.T, repo *store.Repository, content, label string, tags []string) int64 {
 	t.Helper()
+
 	id, err := repo.Insert(buffer.NewBuffer(content, label, tags))
 	if err != nil {
 		t.Fatalf("makeBuffer: %v", err)
 	}
+
 	return id
 }

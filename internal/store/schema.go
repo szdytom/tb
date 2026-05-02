@@ -32,6 +32,7 @@ func migrate(db *sql.DB) error {
 	}
 
 	var currentVersion int
+
 	err := db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&currentVersion)
 	if err != nil {
 		return fmt.Errorf("read schema version: %w", err)
@@ -42,6 +43,7 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -60,6 +62,7 @@ func runMigration(db *sql.DB, version int) error {
 	if _, err := tx.Exec(ddl); err != nil {
 		return fmt.Errorf("migration %d exec: %w", version, err)
 	}
+
 	if _, err := tx.Exec(`INSERT INTO schema_version (version) VALUES (?)`, version); err != nil {
 		return fmt.Errorf("migration %d record: %w", version, err)
 	}

@@ -11,12 +11,15 @@ func Resolve(preferred string) string {
 	if preferred != "" {
 		return preferred
 	}
+
 	if e := os.Getenv("EDITOR"); e != "" {
 		return e
 	}
+
 	if e := os.Getenv("VISUAL"); e != "" {
 		return e
 	}
+
 	return "vi"
 }
 
@@ -27,10 +30,13 @@ func CreateTempFile(content string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
+
 	if _, err := f.WriteString(content); err != nil {
-		os.Remove(f.Name())
+		_ = os.Remove(f.Name())
+
 		return "", err
 	}
+
 	return f.Name(), nil
 }
 
@@ -40,6 +46,7 @@ func ReadFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return string(data), nil
 }
 
@@ -50,6 +57,6 @@ func BuildCmd(editorStr, tmpPath string) *exec.Cmd {
 	if len(parts) == 0 {
 		parts = []string{"vi"}
 	}
-	args := append(parts[1:], tmpPath)
-	return exec.Command(parts[0], args...)
+
+	return exec.Command(parts[0], append(parts[1:], tmpPath)...)
 }

@@ -50,16 +50,19 @@ func (r *Repository) searchLiteral(query string) ([]SearchResult, error) {
 	defer rows.Close()
 
 	var results []SearchResult
+
 	for rows.Next() {
 		buf, err := scanBuffer(rows)
 		if err != nil {
 			return nil, err
 		}
+
 		results = append(results, SearchResult{
 			Buffer:  buf,
 			Snippet: extractSnippet(buf.Content, query, nil),
 		})
 	}
+
 	return results, rows.Err()
 }
 
@@ -79,11 +82,13 @@ func (r *Repository) searchRegex(pattern string) ([]SearchResult, error) {
 	defer rows.Close()
 
 	var results []SearchResult
+
 	for rows.Next() {
 		buf, err := scanBuffer(rows)
 		if err != nil {
 			return nil, err
 		}
+
 		if re.MatchString(buf.Content) {
 			results = append(results, SearchResult{
 				Buffer:  buf,
@@ -91,6 +96,7 @@ func (r *Repository) searchRegex(pattern string) ([]SearchResult, error) {
 			})
 		}
 	}
+
 	return results, rows.Err()
 }
 
@@ -104,11 +110,13 @@ func (r *Repository) searchFuzzy(query string) ([]SearchResult, error) {
 	defer rows.Close()
 
 	var results []SearchResult
+
 	for rows.Next() {
 		buf, err := scanBuffer(rows)
 		if err != nil {
 			return nil, err
 		}
+
 		if fuzzy.FindFold(query, []string{buf.Content}) != nil {
 			results = append(results, SearchResult{
 				Buffer:  buf,
@@ -116,6 +124,7 @@ func (r *Repository) searchFuzzy(query string) ([]SearchResult, error) {
 			})
 		}
 	}
+
 	return results, rows.Err()
 }
 
@@ -125,26 +134,27 @@ func extractFuzzySnippet(content, query string) string {
 	if content == "" || query == "" {
 		return truncateHead(content)
 	}
+
 	lowerContent := strings.ToLower(content)
+
 	idx := strings.Index(lowerContent, strings.ToLower(string(query[0])))
 	if idx == -1 {
 		return truncateHead(content)
 	}
-	start := idx - snippetRadius
-	if start < 0 {
-		start = 0
-	}
-	end := idx + snippetRadius
-	if end > len(content) {
-		end = len(content)
-	}
+
+	start := max(idx-snippetRadius, 0)
+
+	end := min(idx+snippetRadius, len(content))
+
 	snippet := content[start:end]
 	if start > 0 {
 		snippet = "..." + snippet
 	}
+
 	if end < len(content) {
-		snippet = snippet + "..."
+		snippet += "..."
 	}
+
 	return snippet
 }
 
@@ -156,37 +166,37 @@ func extractSnippet(content, query string, re *regexp.Regexp) string {
 	}
 
 	var idx int
+
 	if re != nil {
 		loc := re.FindStringIndex(content)
 		if loc == nil {
 			return truncateHead(content)
 		}
+
 		idx = loc[0]
 	} else {
 		lowerContent := strings.ToLower(content)
 		lowerQuery := strings.ToLower(query)
+
 		idx = strings.Index(lowerContent, lowerQuery)
 		if idx == -1 {
 			return truncateHead(content)
 		}
 	}
 
-	start := idx - snippetRadius
-	if start < 0 {
-		start = 0
-	}
-	end := idx + len(query) + snippetRadius
-	if end > len(content) {
-		end = len(content)
-	}
+	start := max(idx-snippetRadius, 0)
+
+	end := min(idx+len(query)+snippetRadius, len(content))
 
 	snippet := content[start:end]
 	if start > 0 {
 		snippet = "..." + snippet
 	}
+
 	if end < len(content) {
-		snippet = snippet + "..."
+		snippet += "..."
 	}
+
 	return snippet
 }
 
@@ -194,5 +204,6 @@ func truncateHead(content string) string {
 	if len(content) <= snippetRadius*2 {
 		return content
 	}
+
 	return content[:snippetRadius*2] + "..."
 }

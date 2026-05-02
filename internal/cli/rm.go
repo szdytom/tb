@@ -13,6 +13,7 @@ type rmFlags struct {
 
 func newRmCmd() *cobra.Command {
 	var f rmFlags
+
 	cmd := &cobra.Command{
 		Use:   "rm <id>",
 		Short: "Delete a buffer (moves to trash unless --permanent)",
@@ -22,6 +23,7 @@ func newRmCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVarP(&f.permanent, "permanent", "P", false, "permanently delete immediately")
+
 	return cmd
 }
 
@@ -29,13 +31,16 @@ func runRm(idStr string, f *rmFlags) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		printError("invalid buffer id: " + idStr)
+
 		return err
 	}
 
 	cfg := config.Default()
+
 	client, err := NewClient(cfg)
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 	defer client.Close()
@@ -45,9 +50,12 @@ func runRm(idStr string, f *rmFlags) error {
 	} else {
 		err = client.SoftDelete(id, cfg.TrashTTL)
 	}
+
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
+
 	return nil
 }

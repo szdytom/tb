@@ -36,6 +36,7 @@ type Buffer struct {
 // NewBuffer creates a new active buffer with the given content and metadata.
 func NewBuffer(content, label string, tags []string) *Buffer {
 	now := time.Now()
+
 	return &Buffer{
 		Content:     content,
 		Label:       label,
@@ -56,6 +57,7 @@ func ComputeMetadata(content string) Metadata {
 			lineCount++
 		}
 	}
+
 	return Metadata{
 		LineCount: lineCount,
 		ByteCount: len(content),
@@ -77,9 +79,10 @@ type BufferSummary struct {
 
 // FirstLine returns the first line of s (text up to the first newline).
 func FirstLine(s string) string {
-	if idx := strings.IndexByte(s, '\n'); idx >= 0 {
-		return s[:idx]
+	if before, _, ok := strings.Cut(s, "\n"); ok {
+		return before
 	}
+
 	return s
 }
 
@@ -89,6 +92,7 @@ func NewBufferSummary(b *Buffer) BufferSummary {
 	if len(preview) > 80 {
 		preview = preview[:80] + "..."
 	}
+
 	return BufferSummary{
 		ID:        b.ID,
 		Label:     b.Label,

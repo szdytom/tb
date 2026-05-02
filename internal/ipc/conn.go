@@ -24,12 +24,12 @@ func NewConn(c net.Conn) *Conn {
 }
 
 // Send encodes v as JSON and writes it followed by a newline.
-func (c *Conn) Send(v interface{}) error {
+func (c *Conn) Send(v any) error {
 	return c.enc.Encode(v)
 }
 
 // Receive decodes one JSON value from the connection into v.
-func (c *Conn) Receive(v interface{}) error {
+func (c *Conn) Receive(v any) error {
 	return c.dec.Decode(v)
 }
 
@@ -44,5 +44,6 @@ func Dial(socketPath string, timeout time.Duration) (*Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dial %s: %w", socketPath, err)
 	}
+
 	return NewConn(conn), nil
 }

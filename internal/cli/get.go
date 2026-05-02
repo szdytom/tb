@@ -23,13 +23,16 @@ func runGet(idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		printError("invalid buffer id: " + idStr)
+
 		return err
 	}
 
 	cfg := config.Default()
+
 	client, err := NewClient(cfg)
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 	defer client.Close()
@@ -37,6 +40,7 @@ func runGet(idStr string) error {
 	buf, err := client.GetBuffer(id)
 	if err != nil {
 		printError(fmt.Sprintf("buffer %d: %s", id, err.Error()))
+
 		return err
 	}
 
@@ -44,9 +48,11 @@ func runGet(idStr string) error {
 		printJSON(buf)
 	} else {
 		fmt.Print(buf.Content)
+
 		if buf.Content != "" && buf.Content[len(buf.Content)-1] != '\n' {
 			fmt.Println()
 		}
 	}
+
 	return nil
 }

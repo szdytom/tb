@@ -22,6 +22,7 @@ func newRootCmd() *cobra.Command {
 			if configFile != "" {
 				config.SetConfigFile(configFile)
 			}
+
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -30,6 +31,7 @@ func newRootCmd() *cobra.Command {
 	}
 	cmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "path to config file")
 	cmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
+
 	return cmd
 }
 
@@ -50,18 +52,23 @@ func Execute(args []string) int {
 		newTuiCmd(),
 	)
 	root.SetArgs(args)
+
 	if err := root.Execute(); err != nil {
 		printError(err.Error())
+
 		return 1
 	}
+
 	return 0
 }
 
 func runTUI() error {
 	cfg := config.Default()
+
 	client, err := NewClient(cfg)
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 	defer client.Close()

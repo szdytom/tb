@@ -17,6 +17,7 @@ type addFlags struct {
 
 func newAddCmd() *cobra.Command {
 	var f addFlags
+
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "Create a new buffer",
@@ -33,11 +34,13 @@ Examples:
 	cmd.Flags().StringVarP(&f.text, "text", "T", "", "buffer content as text argument")
 	cmd.Flags().StringVarP(&f.label, "label", "l", "", "human-readable label")
 	cmd.Flags().StringSliceVarP(&f.tags, "tag", "t", nil, "tags (comma-separated)")
+
 	return cmd
 }
 
 func runAdd(f *addFlags) error {
 	var content string
+
 	switch {
 	case f.text != "":
 		content = f.text
@@ -45,15 +48,19 @@ func runAdd(f *addFlags) error {
 		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			printError("read stdin: " + err.Error())
+
 			return err
 		}
+
 		content = string(data)
 	}
 
 	cfg := config.Default()
+
 	client, err := NewClient(cfg)
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 	defer client.Close()
@@ -61,6 +68,7 @@ func runAdd(f *addFlags) error {
 	id, err := client.CreateBuffer(content, f.label, f.tags)
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 
@@ -69,5 +77,6 @@ func runAdd(f *addFlags) error {
 	} else {
 		fmt.Println(id)
 	}
+
 	return nil
 }

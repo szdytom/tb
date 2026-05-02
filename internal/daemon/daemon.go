@@ -32,6 +32,7 @@ func New(cfg *config.Config) (*Daemon, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open store: %w", err)
 	}
+
 	return &Daemon{repo: store.NewRepository(db), db: db, cfg: cfg}, nil
 }
 
@@ -69,21 +70,37 @@ func (d *Daemon) Shutdown() error {
 	d.RemovePidFile()
 
 	if d.ln != nil {
-		d.ln.Close()
+		_ = d.ln.Close()
 	}
+
 	d.wg.Wait()
 
 	if d.cfg.SocketPath != "" {
-		os.Remove(d.cfg.SocketPath)
+		_ = os.Remove(d.cfg.SocketPath)
 	}
 
 	return d.db.Close()
 }
 
+// WritePidFile writes the daemon's PID to the configured PID file path.
+func (d *Daemon) WritePidFile() error {
+	dir := filepath.Dir(d.cfg.PidFilePath())
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+
+	return os.WriteFile(d.cfg.PidFilePath(), []byte(strconv.Itoa(os.Getpid())), 0600)
+}
+
+// RemovePidFile deletes the PID file. Errors are silently ignored.
+func (d *Daemon) RemovePidFile() {
+	_ = os.Remove(d.cfg.PidFilePath())
+}
+
 // autoPurgeLoop periodically removes trashed buffers whose TTL has expired.
 func (d *Daemon) autoPurgeLoop(ctx context.Context) {
 	d.purgeExpiredTrash()
-	d.db.Checkpoint()
+	_ = d.db.Checkpoint()
 
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
@@ -92,7 +109,7 @@ func (d *Daemon) autoPurgeLoop(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			d.purgeExpiredTrash()
-			d.db.Checkpoint()
+			_ = d.db.Checkpoint()
 		case <-ctx.Done():
 			return
 		}
@@ -103,23 +120,11 @@ func (d *Daemon) purgeExpiredTrash() {
 	n, err := d.repo.DeleteExpiredTrash()
 	if err != nil {
 		log.Printf("auto-purge: %v", err)
+
 		return
 	}
+
 	if n > 0 {
 		log.Printf("auto-purge: removed %d expired trash entries", n)
 	}
-}
-
-// WritePidFile writes the daemon's PID to the configured PID file path.
-func (d *Daemon) WritePidFile() error {
-	dir := filepath.Dir(d.cfg.PidFilePath())
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-	return os.WriteFile(d.cfg.PidFilePath(), []byte(strconv.Itoa(os.Getpid())), 0600)
-}
-
-// RemovePidFile deletes the PID file. Errors are silently ignored.
-func (d *Daemon) RemovePidFile() {
-	os.Remove(d.cfg.PidFilePath())
 }

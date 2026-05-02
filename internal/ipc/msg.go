@@ -102,23 +102,27 @@ type CountResponse struct {
 
 // NewRequest builds a Request with the given op and payload. If payload
 // is nil the Payload field is left empty (omitted from JSON).
-func NewRequest(id int64, op Op, payload interface{}) Request {
+func NewRequest(id int64, op Op, payload any) Request {
 	req := Request{ID: id, Op: op}
+
 	if payload != nil {
 		raw, _ := json.Marshal(payload)
 		req.Payload = raw
 	}
+
 	return req
 }
 
 // OKResponse builds a success Response. If payload is nil the Payload
 // field is left empty.
-func OKResponse(id int64, payload interface{}) Response {
+func OKResponse(id int64, payload any) Response {
 	resp := Response{ID: id, Ok: true}
+
 	if payload != nil {
 		raw, _ := json.Marshal(payload)
 		resp.Payload = raw
 	}
+
 	return resp
 }
 
@@ -128,6 +132,6 @@ func ErrorResponse(id int64, msg string) Response {
 }
 
 // UnmarshalPayload decodes the response payload into v.
-func (r *Response) UnmarshalPayload(v interface{}) error {
+func (r *Response) UnmarshalPayload(v any) error {
 	return json.Unmarshal(r.Payload, v)
 }

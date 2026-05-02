@@ -22,6 +22,7 @@ type listFlags struct {
 
 func newListCmd() *cobra.Command {
 	var f listFlags
+
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List active buffers",
@@ -34,14 +35,17 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&f.since, "since", "s", "", "only buffers updated after RFC 3339 timestamp")
 	cmd.Flags().StringVarP(&f.until, "until", "u", "", "only buffers updated before RFC 3339 timestamp")
 	cmd.Flags().IntVarP(&f.limit, "limit", "n", 0, "maximum number of results")
+
 	return cmd
 }
 
 func runList(f *listFlags) error {
 	cfg := config.Default()
+
 	client, err := NewClient(cfg)
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 	defer client.Close()
@@ -51,17 +55,21 @@ func runList(f *listFlags) error {
 		results, err := client.Search(f.regex, "regex")
 		if err != nil {
 			printError(err.Error())
+
 			return err
 		}
+
 		bufs := make([]*buffer.Buffer, 0, len(results))
 		for _, r := range results {
 			bufs = append(bufs, r.Buffer)
 		}
+
 		if jsonOutput {
 			printJSON(bufs)
 		} else {
 			printBufferTable(bufs)
 		}
+
 		return nil
 	}
 
@@ -71,9 +79,11 @@ func runList(f *listFlags) error {
 		Since:   f.since,
 		Until:   f.until,
 	}
+
 	bufs, err := client.ListBuffers(payload)
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 
@@ -82,34 +92,42 @@ func runList(f *listFlags) error {
 	} else {
 		printBufferTable(bufs)
 	}
+
 	return nil
 }
 
 func printBufferTable(bufs []*buffer.Buffer) {
 	if len(bufs) == 0 {
 		fmt.Fprintln(os.Stderr, "No buffers")
+
 		return
 	}
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "ID\tLABEL\tCONTENT\tUPDATED")
+	_, _ = fmt.Fprintln(w, "ID\tLABEL\tCONTENT\tUPDATED")
+
 	for _, buf := range bufs {
 		label := buf.Label
 		if label == "" {
 			label = "-"
 		}
+
 		preview := buffer.FirstLine(buf.Content)
 		if len(preview) > 48 {
 			preview = preview[:48] + "..."
 		}
+
 		updated := buf.UpdatedAt.Format(time.RFC3339)
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", buf.ID, truncate(label, 16), preview, updated)
+		_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", buf.ID, truncate(label, 16), preview, updated)
 	}
-	w.Flush()
+
+	_ = w.Flush()
 }
 
 func truncate(s string, n int) string {
 	if len(s) > n {
 		return s[:n] + "…"
 	}
+
 	return s
 }

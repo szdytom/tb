@@ -10,6 +10,7 @@ import (
 
 func main() {
 	configFile := flag.String("c", "", "path to config file")
+
 	flag.Parse()
 
 	if *configFile != "" {

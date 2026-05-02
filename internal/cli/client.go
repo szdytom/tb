@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/szdytom/tb/internal/buffer"
@@ -24,31 +25,15 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect to daemon: %w", err)
 	}
+
 	return &Client{conn: conn, nextID: 1}, nil
 }
 
 // Close shuts down the underlying connection.
-func (c *Client) Close() error {
-	return c.conn.Close()
-}
-
-func (c *Client) do(op ipc.Op, payload interface{}) (ipc.Response, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	req := ipc.NewRequest(c.nextID, op, payload)
-	c.nextID++
-	if err := c.conn.Send(req); err != nil {
-		return ipc.Response{}, fmt.Errorf("send: %w", err)
+func (c *Client) Close() {
+	if err := c.conn.Close(); err != nil {
+		log.Printf("close daemon connection: %v", err)
 	}
-	var resp ipc.Response
-	if err := c.conn.Receive(&resp); err != nil {
-		return ipc.Response{}, fmt.Errorf("receive: %w", err)
-	}
-	if !resp.Ok {
-		return resp, fmt.Errorf("%s", resp.Error)
-	}
-	return resp, nil
 }
 
 // Ping checks that the daemon is alive.
@@ -57,10 +42,12 @@ func (c *Client) Ping() error {
 	if err != nil {
 		return err
 	}
+
 	var p ipc.PingResponse
 	if err := resp.UnmarshalPayload(&p); err != nil {
 		return fmt.Errorf("decode ping response: %w", err)
 	}
+
 	return nil
 }
 
@@ -74,10 +61,12 @@ func (c *Client) CreateBuffer(content, label string, tags []string) (int64, erro
 	if err != nil {
 		return 0, err
 	}
+
 	var idResp ipc.IDResponse
 	if err := resp.UnmarshalPayload(&idResp); err != nil {
 		return 0, fmt.Errorf("decode create response: %w", err)
 	}
+
 	return idResp.ID, nil
 }
 
@@ -87,10 +76,12 @@ func (c *Client) GetBuffer(id int64) (*buffer.Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var buf buffer.Buffer
 	if err := resp.UnmarshalPayload(&buf); err != nil {
 		return nil, fmt.Errorf("decode get response: %w", err)
 	}
+
 	return &buf, nil
 }
 
@@ -100,10 +91,12 @@ func (c *Client) ListBuffers(payload ipc.ListBuffersPayload) ([]*buffer.Buffer, 
 	if err != nil {
 		return nil, err
 	}
+
 	var bufs []*buffer.Buffer
 	if err := resp.UnmarshalPayload(&bufs); err != nil {
 		return nil, fmt.Errorf("decode list response: %w", err)
 	}
+
 	return bufs, nil
 }
 
@@ -113,10 +106,12 @@ func (c *Client) ListBufferSummaries(payload ipc.ListBuffersPayload) ([]buffer.B
 	if err != nil {
 		return nil, err
 	}
+
 	var summaries []buffer.BufferSummary
 	if err := resp.UnmarshalPayload(&summaries); err != nil {
 		return nil, fmt.Errorf("decode list summaries response: %w", err)
 	}
+
 	return summaries, nil
 }
 
@@ -126,6 +121,7 @@ func (c *Client) UpdateContent(id int64, content string) error {
 		ID:      id,
 		Content: content,
 	})
+
 	return err
 }
 
@@ -135,6 +131,7 @@ func (c *Client) UpdateLabel(id int64, label string) error {
 		ID:    id,
 		Label: label,
 	})
+
 	return err
 }
 
@@ -144,6 +141,7 @@ func (c *Client) UpdateTags(id int64, tags []string) error {
 		ID:   id,
 		Tags: tags,
 	})
+
 	return err
 }
 
@@ -153,12 +151,14 @@ func (c *Client) SoftDelete(id int64, ttlSeconds int) error {
 		ID:         id,
 		TTLSeconds: ttlSeconds,
 	})
+
 	return err
 }
 
 // PermanentlyDelete removes a buffer entirely.
 func (c *Client) PermanentlyDelete(id int64) error {
 	_, err := c.do(ipc.OpPermanentlyDelete, ipc.IDPayload{ID: id})
+
 	return err
 }
 
@@ -168,16 +168,19 @@ func (c *Client) ListTrash() ([]*buffer.Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var bufs []*buffer.Buffer
 	if err := resp.UnmarshalPayload(&bufs); err != nil {
 		return nil, fmt.Errorf("decode list trash response: %w", err)
 	}
+
 	return bufs, nil
 }
 
 // RestoreFromTrash restores a trashed buffer.
 func (c *Client) RestoreFromTrash(id int64) error {
 	_, err := c.do(ipc.OpRestoreFromTrash, ipc.IDPayload{ID: id})
+
 	return err
 }
 
@@ -191,10 +194,12 @@ func (c *Client) Search(query string, mode string) ([]store.SearchResult, error)
 	if err != nil {
 		return nil, err
 	}
+
 	var results []store.SearchResult
 	if err := resp.UnmarshalPayload(&results); err != nil {
 		return nil, fmt.Errorf("decode search response: %w", err)
 	}
+
 	return results, nil
 }
 
@@ -204,9 +209,34 @@ func (c *Client) Count() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	var countResp ipc.CountResponse
 	if err := resp.UnmarshalPayload(&countResp); err != nil {
 		return 0, fmt.Errorf("decode count response: %w", err)
 	}
+
 	return countResp.Count, nil
+}
+
+func (c *Client) do(op ipc.Op, payload any) (ipc.Response, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	req := ipc.NewRequest(c.nextID, op, payload)
+
+	c.nextID++
+	if err := c.conn.Send(req); err != nil {
+		return ipc.Response{}, fmt.Errorf("send: %w", err)
+	}
+
+	var resp ipc.Response
+	if err := c.conn.Receive(&resp); err != nil {
+		return ipc.Response{}, fmt.Errorf("receive: %w", err)
+	}
+
+	if !resp.Ok {
+		return resp, fmt.Errorf("%s", resp.Error)
+	}
+
+	return resp, nil
 }

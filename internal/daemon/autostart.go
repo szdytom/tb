@@ -31,6 +31,7 @@ func Autostart(cfg *config.Config) (*ipc.Conn, error) {
 	if configFile := config.GetCustomConfigFile(); configFile != "" {
 		cmd.Args = append(cmd.Args, "-c", configFile)
 	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -42,6 +43,7 @@ func Autostart(cfg *config.Config) (*ipc.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("daemon started but not responding: %w", err)
 	}
+
 	return conn, nil
 }
 
@@ -56,10 +58,12 @@ func FindDaemonBinary() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	path := filepath.Join(filepath.Dir(exe), "tmpbufferd")
 	if _, err := os.Stat(path); err == nil {
 		return path, nil
 	}
+
 	return "", fmt.Errorf("tmpbufferd not found in PATH or next to %s", exe)
 }
 
@@ -71,7 +75,9 @@ func WaitForSocket(socketPath string, timeout time.Duration) (*ipc.Conn, error) 
 		if err == nil {
 			return conn, nil
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	return nil, fmt.Errorf("timeout after %v", timeout)
 }

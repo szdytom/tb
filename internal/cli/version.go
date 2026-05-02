@@ -15,6 +15,7 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print version information",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("tb version", Version)
+
 			return nil
 		},
 	}

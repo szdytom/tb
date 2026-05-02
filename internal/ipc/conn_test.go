@@ -13,24 +13,28 @@ import (
 // synchronous writes.
 func newPipe(t *testing.T) (server, client *ipc.Conn) {
 	t.Helper()
+
 	s, c := net.Pipe()
+
 	t.Cleanup(func() { s.Close() })
 	t.Cleanup(func() { c.Close() })
+
 	return ipc.NewConn(s), ipc.NewConn(c)
 }
 
 func TestSendReceive(t *testing.T) {
 	server, client := newPipe(t)
 
-	var got ipc.Request
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	var (
+		got ipc.Request
+		wg  sync.WaitGroup
+	)
+
+	wg.Go(func() {
 		if err := server.Receive(&got); err != nil {
 			t.Errorf("receive: %v", err)
 		}
-	}()
+	})
 
 	req := ipc.NewRequest(1, ipc.OpPing, nil)
 	if err := client.Send(req); err != nil {
@@ -48,12 +52,14 @@ func TestConsecutiveMessages(t *testing.T) {
 	server, client := newPipe(t)
 
 	ch := make(chan ipc.Request, 2)
+
 	go func() {
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			var got ipc.Request
 			if err := server.Receive(&got); err != nil {
 				return
 			}
+
 			ch <- got
 		}
 	}()
@@ -61,6 +67,7 @@ func TestConsecutiveMessages(t *testing.T) {
 	if err := client.Send(ipc.NewRequest(1, ipc.OpPing, nil)); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := client.Send(ipc.NewRequest(2, ipc.OpPing, nil)); err != nil {
 		t.Fatal(err)
 	}
@@ -76,15 +83,16 @@ func TestConsecutiveMessages(t *testing.T) {
 func TestSendReceiveResponse(t *testing.T) {
 	server, client := newPipe(t)
 
-	var got ipc.Response
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	var (
+		got ipc.Response
+		wg  sync.WaitGroup
+	)
+
+	wg.Go(func() {
 		if err := client.Receive(&got); err != nil {
 			t.Errorf("receive: %v", err)
 		}
-	}()
+	})
 
 	resp := ipc.OKResponse(1, ipc.PingResponse{Message: "pong"})
 	if err := server.Send(resp); err != nil {

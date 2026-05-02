@@ -24,6 +24,7 @@ func newDaemonCmd() *cobra.Command {
 		newDaemonStopCmd(),
 		newDaemonStatusCmd(),
 	)
+
 	return cmd
 }
 
@@ -63,14 +64,17 @@ func runDaemonStart() error {
 	// Check if already running.
 	conn, err := ipc.Dial(cfg.SocketPath, 500*time.Millisecond)
 	if err == nil {
-		conn.Close()
+		_ = conn.Close()
+
 		fmt.Fprintln(os.Stderr, "Daemon is already running")
+
 		return nil
 	}
 
 	daemonPath, err := daemon.FindDaemonBinary()
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 
@@ -78,22 +82,26 @@ func runDaemonStart() error {
 	if configFile != "" {
 		daemonArgs = append(daemonArgs, "-c", configFile)
 	}
+
 	cmd := exec.Command(daemonPath, daemonArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Start(); err != nil {
 		printError("start daemon: " + err.Error())
+
 		return err
 	}
 
 	// Wait for the socket to appear.
 	if _, err := daemon.WaitForSocket(cfg.SocketPath, 5*time.Second); err != nil {
 		printError("daemon started but not responding")
+
 		return err
 	}
 
 	fmt.Fprintf(os.Stderr, "Daemon started (PID %d)\n", cmd.Process.Pid)
+
 	return nil
 }
 
@@ -103,25 +111,30 @@ func runDaemonStop() error {
 	pidData, err := os.ReadFile(cfg.PidFilePath())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Daemon is not running")
+
 		return nil
 	}
 
 	pid, err := strconv.Atoi(string(pidData))
 	if err != nil {
 		printError("invalid PID file")
+
 		return err
 	}
 
 	proc, err := os.FindProcess(pid)
 	if err != nil {
 		// Process not found; clean up PID file.
-		os.Remove(cfg.PidFilePath())
+		_ = os.Remove(cfg.PidFilePath())
+
 		fmt.Fprintln(os.Stderr, "Daemon is not running")
+
 		return nil
 	}
 
 	if err := proc.Signal(os.Interrupt); err != nil {
 		printError("stop daemon: " + err.Error())
+
 		return err
 	}
 
@@ -130,10 +143,12 @@ func runDaemonStop() error {
 		if _, err := os.Stat(cfg.SocketPath); os.IsNotExist(err) {
 			break
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	fmt.Fprintf(os.Stderr, "Daemon stopped (PID %d)\n", pid)
+
 	return nil
 }
 
@@ -143,6 +158,7 @@ func runDaemonStatus() error {
 	conn, err := ipc.Dial(cfg.SocketPath, 500*time.Millisecond)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Daemon is not running")
+
 		return fmt.Errorf("not running")
 	}
 	defer conn.Close()
@@ -151,6 +167,7 @@ func runDaemonStatus() error {
 	client := &Client{conn: conn, nextID: 1}
 	if err := client.Ping(); err != nil {
 		fmt.Fprintln(os.Stderr, "Daemon is not running")
+
 		return fmt.Errorf("not running")
 	}
 
@@ -161,5 +178,6 @@ func runDaemonStatus() error {
 	}
 
 	fmt.Fprintf(os.Stderr, "Daemon is running (PID %s)\n", pidStr)
+
 	return nil
 }

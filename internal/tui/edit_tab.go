@@ -74,6 +74,7 @@ func (et *EditorTab) Start(w, h int) {
 			} else {
 				et.ResultContent = content
 			}
+
 			if e.Error != nil {
 				if exitErr, ok := e.Error.(*exec.ExitError); ok {
 					et.ExitCode = exitErr.ExitCode()
@@ -81,6 +82,7 @@ func (et *EditorTab) Start(w, h int) {
 					et.ExitCode = -1
 				}
 			}
+
 			et.done = true
 			if et.onExit != nil {
 				et.onExit()
@@ -95,12 +97,15 @@ func (et *EditorTab) Start(w, h int) {
 
 	if err := et.vt.StartWithSize(et.cmd, w, h); err != nil {
 		et.ExitErr = fmt.Errorf("start terminal: %w", err)
+
 		et.done = true
 		if et.onExit != nil {
 			et.onExit()
 		}
+
 		return
 	}
+
 	et.running = true
 }
 
@@ -108,13 +113,16 @@ func (et *EditorTab) Draw(win vaxis.Window) {
 	if et.closed {
 		return
 	}
+
 	w, h := win.Size()
 	if w < 1 || h < 1 {
 		return
 	}
+
 	if !et.running {
 		et.Start(w, h)
 	}
+
 	et.vt.Draw(win)
 }
 
@@ -146,6 +154,7 @@ func (et *EditorTab) Close() {
 	if et.closed {
 		return
 	}
+
 	et.closed = true
 	et.running = false
 	et.vt.Detach()

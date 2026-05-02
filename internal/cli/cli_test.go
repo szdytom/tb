@@ -40,6 +40,7 @@ func setupTestServer(t *testing.T) func() {
 		os.RemoveAll(dir)
 		t.Fatalf("ensure dirs: %v", err)
 	}
+
 	d, err := daemon.New(cfg)
 	if err != nil {
 		os.RemoveAll(dir)
@@ -59,6 +60,7 @@ func setupTestServer(t *testing.T) func() {
 		os.RemoveAll(dir)
 		t.Fatalf("dial daemon: %v", err)
 	}
+
 	readyConn.Close()
 
 	cleanup := func() {
@@ -88,10 +90,12 @@ func TestAddGet(t *testing.T) {
 		cli.Execute([]string{"add", "--text", "hello world", "--label", "test"})
 	})
 	idStr := strings.TrimSpace(out)
+
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		t.Fatalf("add output = %q, want numeric ID", idStr)
 	}
+
 	if id == 0 {
 		t.Fatal("expected non-zero ID")
 	}
@@ -134,6 +138,7 @@ func TestAddStdin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	go func() {
 		w.Write([]byte("from stdin"))
 		w.Close()
@@ -205,6 +210,7 @@ func TestListFilter(t *testing.T) {
 	if !strings.Contains(out, "apple") {
 		t.Errorf("list --filter banana = %q, want 'apple'", out)
 	}
+
 	if strings.Contains(out, "cherry") {
 		t.Errorf("list --filter banana = %q, should NOT contain 'cherry'", out)
 	}
@@ -222,6 +228,7 @@ func TestSearch(t *testing.T) {
 	if !strings.Contains(out, "error: timeout") {
 		t.Errorf("search output = %q, want snippet with 'error: timeout'", out)
 	}
+
 	if strings.Contains(out, "everything is fine") {
 		t.Errorf("search should not match 'everything is fine', got %q", out)
 	}
@@ -353,13 +360,14 @@ func TestEditPreservesContent(t *testing.T) {
 func TestCount(t *testing.T) {
 	defer setupTestServer(t)()
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		cli.Execute([]string{"add", "--text", fmt.Sprintf("buf %d", i)})
 	}
 
 	out := captureStdout(func() {
 		cli.Execute([]string{"list", "--json"})
 	})
+
 	count := strings.Count(out, `"id":`)
 	if count != 3 {
 		t.Errorf("expected 3 buffers, got %d", count)
@@ -383,15 +391,18 @@ func captureStdout(f func()) string {
 	if err != nil {
 		panic(err)
 	}
+
 	orig := os.Stdout
 	os.Stdout = w
 
 	f()
 
 	w.Close()
+
 	os.Stdout = orig
 
 	var buf strings.Builder
 	io.Copy(&buf, r)
+
 	return buf.String()
 }

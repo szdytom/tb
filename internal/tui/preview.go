@@ -37,6 +37,7 @@ func (p *TextPreview) Len() int {
 	if len(p.lines) == 0 || (len(p.lines) == 1 && p.lines[0] == "") {
 		return 0
 	}
+
 	return len(p.lines)
 }
 
@@ -60,16 +61,6 @@ func (p *TextPreview) PageDown() {
 	p.ScrollDown(p.height)
 }
 
-func (p *TextPreview) clampOffset() {
-	max := len(p.lines) - p.height
-	if max < 0 {
-		max = 0
-	}
-	if p.vOffset > max {
-		p.vOffset = max
-	}
-}
-
 func (p *TextPreview) ScrollLeft(n int) {
 	p.hOffset -= n
 	if p.hOffset < 0 {
@@ -90,13 +81,12 @@ func (p *TextPreview) DrawText(win vaxis.Window) {
 			Text:  "(empty)",
 			Style: emptyStyle,
 		})
+
 		return
 	}
 
-	end := p.vOffset + p.height
-	if end > len(p.lines) {
-		end = len(p.lines)
-	}
+	end := min(p.vOffset+p.height, len(p.lines))
+
 	visible := p.lines[p.vOffset:end]
 
 	for i, line := range visible {
@@ -111,6 +101,15 @@ func (p *TextPreview) DrawText(win vaxis.Window) {
 			vaxis.Segment{Text: gutter, Style: gutterStyle},
 			vaxis.Segment{Text: line},
 		)
+	}
+}
+
+func (p *TextPreview) clampOffset() {
+	maxOffset := len(p.lines) - p.height
+	maxOffset = max(maxOffset, 0)
+
+	if p.vOffset > maxOffset {
+		p.vOffset = maxOffset
 	}
 }
 
@@ -137,6 +136,7 @@ func (vp *VTPreview) Start(content, cmdStr string, w, h int, eventFn func(vaxis.
 	vt.Attach(eventFn)
 
 	cmd := exec.Command("/bin/sh", "-c", cmdStr)
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("stdin pipe: %w", err)
@@ -153,6 +153,7 @@ func (vp *VTPreview) Start(content, cmdStr string, w, h int, eventFn func(vaxis.
 	}()
 
 	vp.vt = vt
+
 	return nil
 }
 
@@ -162,6 +163,7 @@ func (vp *VTPreview) Draw(win vaxis.Window) {
 		if w < 1 || h < 1 {
 			return
 		}
+
 		vp.vt.Draw(win)
 	}
 }

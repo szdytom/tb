@@ -29,6 +29,7 @@ func (a *App) enterSearch() {
 	if a.searchQuery == "" {
 		a.allSummaries = a.summaries
 	}
+
 	a.curState = stateSearch
 }
 
@@ -37,6 +38,7 @@ func (a *App) exitSearch() {
 		a.searchTimer.Stop()
 		a.searchTimer = nil
 	}
+
 	a.searchInput = nil
 	a.searchGen++
 
@@ -52,11 +54,14 @@ func (a *App) exitSearch() {
 	if a.cursor >= len(a.summaries) {
 		a.cursor = 0
 	}
+
 	if a.listOff > a.cursor {
 		a.listOff = a.cursor
 	}
+
 	a.curState = stateBrowsing
 	a.vx.HideCursor()
+
 	if len(a.summaries) > 0 {
 		a.loadPreviewAsync()
 	}
@@ -67,16 +72,19 @@ func (a *App) commitSearch() {
 		a.searchTimer.Stop()
 		a.searchTimer = nil
 	}
+
 	var query string
 	if a.searchInput != nil {
 		query = a.searchInput.String()
 	}
+
 	a.searchInput = nil
 
 	if query == "" {
 		// Empty query → dismiss search prompt, keep current filter intact
 		a.curState = stateBrowsing
 		a.vx.HideCursor()
+
 		return
 	}
 
@@ -92,13 +100,16 @@ func (a *App) commitSearch() {
 // clearFilter restores the full buffer list when a search filter is active.
 func (a *App) clearFilter() {
 	a.summaries = a.allSummaries
+
 	a.searchQuery = ""
 	if a.cursor >= len(a.summaries) {
 		a.cursor = 0
 	}
+
 	if a.listOff > a.cursor {
 		a.listOff = a.cursor
 	}
+
 	if len(a.summaries) > 0 {
 		a.loadPreviewAsync()
 	}
@@ -108,6 +119,7 @@ func (a *App) searchDebounced() {
 	if a.searchTimer != nil {
 		a.searchTimer.Stop()
 	}
+
 	a.searchGen++
 	gen := a.searchGen
 
@@ -141,8 +153,10 @@ func (a *App) doSearch(query string, gen int) {
 	}
 
 	go func() {
-		var summaries []buffer.BufferSummary
-		var err error
+		var (
+			summaries []buffer.BufferSummary
+			err       error
+		)
 
 		var results []store.SearchResult
 		if strings.HasPrefix(query, "~") {
@@ -150,6 +164,7 @@ func (a *App) doSearch(query string, gen int) {
 		} else {
 			results, err = a.client.Search(query, "fuzzy")
 		}
+
 		if err == nil {
 			for _, r := range results {
 				summaries = append(summaries, buffer.NewBufferSummary(r.Buffer))
@@ -158,11 +173,14 @@ func (a *App) doSearch(query string, gen int) {
 
 		if err != nil {
 			a.vx.PostEvent(searchResult{err: err, gen: gen})
+
 			return
 		}
+
 		if summaries == nil {
 			summaries = []buffer.BufferSummary{}
 		}
+
 		a.vx.PostEvent(searchResult{summaries: summaries, gen: gen})
 	}()
 }
@@ -171,12 +189,15 @@ func (a *App) handleKeySearch(ev vaxis.Key) {
 	switch {
 	case ev.Matches(vaxis.KeyEsc):
 		a.exitSearch()
+
 		return
 	case ev.Matches(vaxis.KeyEnter):
 		a.commitSearch()
+
 		return
 	case ev.Matches('c', vaxis.ModCtrl):
 		a.exitSearch()
+
 		return
 	}
 
@@ -188,11 +209,13 @@ func (a *App) handleKeySearch(ev vaxis.Key) {
 	s := ev.String()
 	if a.searchInput.String() == "" && (s == "BackSpace" || s == "Ctrl+h") {
 		a.exitSearch()
+
 		return
 	}
 
 	oldQuery := a.searchInput.String()
 	a.searchInput.Update(ev)
+
 	newQuery := a.searchInput.String()
 	if newQuery != oldQuery {
 		if newQuery == "" {
@@ -201,6 +224,7 @@ func (a *App) handleKeySearch(ev vaxis.Key) {
 				a.searchTimer.Stop()
 				a.searchTimer = nil
 			}
+
 			a.searchGen++
 		} else {
 			a.searchDebounced()
@@ -211,18 +235,23 @@ func (a *App) handleKeySearch(ev vaxis.Key) {
 func (a *App) handleSearchResult(msg searchResult) {
 	if msg.err != nil {
 		a.setError("Search failed: " + msg.err.Error())
+
 		return
 	}
+
 	if msg.gen != a.searchGen {
 		return
 	}
+
 	a.summaries = msg.summaries
 	if a.cursor >= len(a.summaries) {
 		a.cursor = 0
 	}
+
 	if a.listOff > a.cursor {
 		a.listOff = a.cursor
 	}
+
 	if len(a.summaries) > 0 {
 		a.loadPreviewAsync()
 	}
@@ -232,6 +261,7 @@ func (a *App) drawSearchBar(win vaxis.Window) {
 	if a.searchInput == nil {
 		return
 	}
+
 	a.searchInput.Draw(win)
 }
 
@@ -240,5 +270,6 @@ func (a *App) searchStatusText() string {
 	if a.searchQuery != "" {
 		return fmt.Sprintf(" Searching: %s  (Esc/Ctrl-C to clear) ", a.searchQuery)
 	}
+
 	return ""
 }

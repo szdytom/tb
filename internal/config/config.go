@@ -100,6 +100,7 @@ func loadFile(o *configOverlay) {
 	if path == "" {
 		path = filepath.Join(ConfigDir(), "config.toml")
 	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return
@@ -114,12 +115,15 @@ func loadFile(o *configOverlay) {
 	if tc.Editor != "" {
 		o.Editor = tc.Editor
 	}
+
 	if tc.PreviewCommand != "" {
 		o.PreviewCommand = tc.PreviewCommand
 	}
+
 	if tc.TimeFormat != "" {
 		o.TimeFormat = timeFormatFromString(tc.TimeFormat)
 	}
+
 	if tc.TrashTTL > 0 {
 		o.TrashTTL = tc.TrashTTL
 	}
@@ -131,12 +135,15 @@ func applyEnvOverrides(o *configOverlay) {
 	if e := os.Getenv("VISUAL"); e != "" {
 		o.Editor = e
 	}
+
 	if e := os.Getenv("EDITOR"); e != "" {
 		o.Editor = e
 	}
+
 	if e := os.Getenv("TB_PREVIEW_CMD"); e != "" {
 		o.PreviewCommand = e
 	}
+
 	if e := os.Getenv("TB_TIME_FORMAT"); e != "" {
 		o.TimeFormat = timeFormatFromString(e)
 	}
@@ -156,6 +163,7 @@ func (c *Config) EnsureDirs() error {
 			return err
 		}
 	}
+
 	return nil
 }
 

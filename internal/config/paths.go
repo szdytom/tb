@@ -12,6 +12,7 @@ func DataDir() string {
 	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
 		return filepath.Join(d, appName)
 	}
+
 	return filepath.Join(os.Getenv("HOME"), ".local", "share", appName)
 }
 
@@ -20,6 +21,7 @@ func ConfigDir() string {
 	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" {
 		return filepath.Join(d, appName)
 	}
+
 	return filepath.Join(os.Getenv("HOME"), ".config", appName)
 }
 
@@ -28,5 +30,6 @@ func SocketDir() string {
 	if d := os.Getenv("XDG_STATE_HOME"); d != "" {
 		return filepath.Join(d, appName)
 	}
+
 	return filepath.Join(os.Getenv("HOME"), ".local", "state", appName)
 }

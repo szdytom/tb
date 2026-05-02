@@ -17,6 +17,7 @@ type pipeFlags struct {
 
 func newPipeCmd() *cobra.Command {
 	var f pipeFlags
+
 	cmd := &cobra.Command{
 		Use:   "pipe <id> --command <cmd>",
 		Short: "Pipe buffer content to a command and capture output",
@@ -31,8 +32,9 @@ Examples:
 		},
 	}
 	cmd.Flags().StringVar(&f.command, "command", "", "shell command to run (required)")
-	cmd.MarkFlagRequired("command")
+	_ = cmd.MarkFlagRequired("command")
 	cmd.Flags().BoolVarP(&f.new, "new", "n", false, "create a new buffer with the output")
+
 	return cmd
 }
 
@@ -40,13 +42,16 @@ func runPipe(idStr string, f *pipeFlags) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		printError("invalid buffer id: " + idStr)
+
 		return err
 	}
 
 	cfg := config.Default()
+
 	client, err := NewClient(cfg)
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 	defer client.Close()
@@ -54,6 +59,7 @@ func runPipe(idStr string, f *pipeFlags) error {
 	buf, err := client.GetBuffer(id)
 	if err != nil {
 		printError(err.Error())
+
 		return err
 	}
 
@@ -61,6 +67,7 @@ func runPipe(idStr string, f *pipeFlags) error {
 	cmd.Stdin = bytes.NewReader([]byte(buf.Content))
 
 	var stdout, stderr bytes.Buffer
+
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -69,29 +76,38 @@ func runPipe(idStr string, f *pipeFlags) error {
 		if stderr.Len() > 0 {
 			errMsg += "\n" + stderr.String()
 		}
+
 		printError(errMsg)
+
 		return err
 	}
 
 	output := stdout.String()
 
-	if f.new {
-		newID, err := client.CreateBuffer(output, buf.Label+" (piped)", nil)
+	if err := applyPipeResult(client, id, output, buf.Label, f.new); err != nil {
+		printError(err.Error())
+
+		return err
+	}
+
+	return nil
+}
+
+func applyPipeResult(client *Client, id int64, content, label string, createNew bool) error {
+	if createNew {
+		newID, err := client.CreateBuffer(content, label+" (piped)", nil)
 		if err != nil {
-			printError(err.Error())
 			return err
 		}
+
 		if !jsonOutput {
 			fmt.Println(newID)
 		} else {
 			printJSON(map[string]int64{"id": newID})
 		}
-	} else {
-		if err := client.UpdateContent(id, output); err != nil {
-			printError(err.Error())
-			return err
-		}
+
+		return nil
 	}
 
-	return nil
+	return client.UpdateContent(id, content)
 }

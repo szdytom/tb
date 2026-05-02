@@ -97,6 +97,7 @@ func (a *App) handleMouse(ev vaxis.Mouse) {
 			a.currentTab = tabIdx
 			a.updateTabFocus()
 		}
+
 		return
 	}
 
@@ -116,6 +117,7 @@ func (a *App) handleLeaderKey(ev vaxis.Key) bool {
 
 	if a.leaderPending {
 		a.leaderPending = false
+
 		switch ev.String() {
 		case leader:
 			// Leader pressed twice → pass through to the editor
@@ -123,6 +125,7 @@ func (a *App) handleLeaderKey(ev vaxis.Key) bool {
 		case "1":
 			a.currentTab = 0
 			a.updateTabFocus()
+
 			return true
 		case "2", "3", "4", "5", "6", "7", "8", "9":
 			idx := int(ev.String()[0] - '1') // "2" → 1 (first editor tab)
@@ -130,19 +133,24 @@ func (a *App) handleLeaderKey(ev vaxis.Key) bool {
 				a.currentTab = idx
 				a.updateTabFocus()
 			}
+
 			return true
 		case "n":
 			a.createBufferAsync()
+
 			return true
 		case "q":
 			for _, tab := range a.editorTabs {
 				tab.Close()
 			}
+
 			a.editorTabs = nil
 			a.quitting = true
+
 			return true
 		case "?":
 			a.curState = stateHelp
+
 			return true
 		default:
 			// Unknown key: cancel leader, forward to editor
@@ -152,6 +160,7 @@ func (a *App) handleLeaderKey(ev vaxis.Key) bool {
 
 	if ev.String() == leader && len(a.editorTabs) > 0 {
 		a.leaderPending = true
+
 		return true
 	}
 
@@ -166,9 +175,11 @@ func (a *App) handleKey(ev vaxis.Key) {
 			for _, tab := range a.editorTabs {
 				tab.Close()
 			}
+
 			a.editorTabs = nil
 			a.quitting = true
 		}
+
 		return
 	}
 
@@ -182,8 +193,10 @@ func (a *App) handleKey(ev vaxis.Key) {
 		if a.currentTab > 0 {
 			tab := a.editorTabs[a.currentTab-1]
 			tab.HandleEvent(ev)
+
 			return
 		}
+
 		a.handleKeyBrowsing(ev)
 	case stateSearch:
 		a.handleKeySearch(ev)
@@ -201,53 +214,33 @@ func (a *App) handleKey(ev vaxis.Key) {
 func (a *App) handleKeyBrowsing(ev vaxis.Key) {
 	if ev.String() == ":" {
 		a.awaitingColon = true
+
 		return
 	}
 
 	// Escape/Ctrl+c while a search filter is active → clear the filter
-	if a.searchQuery != "" && (ev.Matches(vaxis.KeyEsc) || ev.Matches('c', vaxis.ModCtrl) || ev.String() == "Escape") {
+	if a.searchQuery != "" && (ev.Matches(vaxis.KeyEsc) || ev.Matches('c', vaxis.ModCtrl)) {
 		a.clearFilter()
+
 		return
 	}
 
 	switch classifyKey(ev) {
 	case keyDown:
 		a.moveDown()
-		a.loadPreviewAsync()
 	case keyUp:
 		a.moveUp()
-		a.loadPreviewAsync()
 	case keyPageDown:
-		step := a.contentH - 1
-		if step < 1 {
-			step = 1
-		}
-		a.cursor += step
-		a.clampCursor()
-		a.listOff = a.cursor
-		a.loadPreviewAsync()
+		a.movePageDown()
 	case keyPageUp:
-		step := a.contentH - 1
-		if step < 1 {
-			step = 1
-		}
-		a.cursor -= step
-		a.clampCursor()
-		a.listOff = a.cursor
-		a.loadPreviewAsync()
+		a.movePageUp()
 	case keyHome:
 		a.cursor = 0
 		a.listOff = 0
 		a.loadPreviewAsync()
 	case keyEnd:
-		a.cursor = len(a.summaries) - 1
-		if a.cursor < 0 {
-			a.cursor = 0
-		}
-		a.listOff = a.cursor - a.contentH + 3
-		if a.listOff < 0 {
-			a.listOff = 0
-		}
+		a.cursor = max(len(a.summaries)-1, 0)
+		a.listOff = max(a.cursor-a.contentH+3, 0)
 		a.loadPreviewAsync()
 	case keyEnter:
 		a.startEditorAsync()
@@ -284,10 +277,13 @@ func (a *App) handleBuffersLoaded(msg buffersLoaded) {
 	if msg.err != nil {
 		a.setError(fmt.Sprintf("Failed to load buffers: %v", msg.err))
 		a.curState = stateBrowsing
+
 		return
 	}
+
 	a.summaries = msg.summaries
 	a.allSummaries = msg.summaries
+
 	a.curState = stateBrowsing
 	if len(msg.summaries) > 0 {
 		a.loadPreviewAsync()
@@ -297,6 +293,7 @@ func (a *App) handleBuffersLoaded(msg buffersLoaded) {
 func (a *App) handleContentLoaded(msg contentLoaded) {
 	if msg.err != nil {
 		a.setError(fmt.Sprintf("Failed to load preview: %v", msg.err))
+
 		return
 	}
 	// Discard stale loads from older navigation
@@ -310,13 +307,15 @@ func (a *App) handleContentLoaded(msg contentLoaded) {
 	useVT := a.previewCmd != ""
 	if !useVT {
 		content := msg.content.Content
-		for i := 0; i < len(content)-1; i++ {
+		for i := range len(content) - 1 {
 			if content[i] == '\x1b' && content[i+1] == '[' {
 				useVT = true
+
 				break
 			}
 		}
 	}
+
 	if useVT && a.previewW > 0 && a.contentH > 0 {
 		a.startVTPreview(msg.content.Content)
 	} else {
@@ -327,10 +326,13 @@ func (a *App) handleContentLoaded(msg contentLoaded) {
 func (a *App) handleBufferCreated(msg bufferCreated) {
 	if msg.err != nil {
 		a.setError(fmt.Sprintf("Failed to create buffer: %v", msg.err))
+
 		return
 	}
+
 	if msg.summary != nil {
 		summary := *msg.summary
+
 		a.allSummaries = append([]buffer.BufferSummary{summary}, a.allSummaries...)
 		if a.curState == stateSearch {
 			a.triggerSearch()
@@ -348,6 +350,7 @@ func (a *App) handleBufferCreated(msg bufferCreated) {
 func (a *App) handleBufferDeleted(msg bufferDeleted) {
 	if msg.err != nil {
 		a.setError(fmt.Sprintf("Failed to delete buffer: %v", msg.err))
+
 		return
 	}
 
@@ -355,6 +358,7 @@ func (a *App) handleBufferDeleted(msg bufferDeleted) {
 		for i, s := range *sl {
 			if s.ID == id {
 				*sl = append((*sl)[:i], (*sl)[i+1:]...)
+
 				break
 			}
 		}
@@ -366,9 +370,11 @@ func (a *App) handleBufferDeleted(msg bufferDeleted) {
 		a.triggerSearch()
 	} else {
 		removeFromList(&a.summaries, msg.id)
+
 		if a.cursor >= len(a.summaries) && a.cursor > 0 {
 			a.cursor--
 		}
+
 		if a.listOff > a.cursor {
 			a.listOff = a.cursor
 		}
@@ -393,6 +399,7 @@ func (a *App) handleKeyEditorExitConfirm(ev vaxis.Key) {
 				a.setError("Failed to save editor changes: " + err.Error())
 			}
 		}
+
 		a.closeEditorTab(a.confirmExitTabIdx)
 		a.curState = stateBrowsing
 	case "n", "N", "Escape":
@@ -405,6 +412,7 @@ func (a *App) handleKeyEditorExitConfirm(ev vaxis.Key) {
 func (a *App) handleEditorStarted(msg editorStarted) {
 	if msg.err != nil {
 		a.setError("Failed to start editor: " + msg.err.Error())
+
 		return
 	}
 
@@ -422,6 +430,7 @@ func (a *App) handleEditorStarted(msg editorStarted) {
 
 	a.editorTabs = append(a.editorTabs, tab)
 	a.currentTab = tabIdx + 1 // 1-based: 1 = first editor tab
+
 	tab.Focus()
 }
 
@@ -430,12 +439,15 @@ func (a *App) handleEditorExited(msg editorExited) {
 
 	// Find the tab index
 	tabIdx := -1
+
 	for i, t := range a.editorTabs {
 		if t == tab {
 			tabIdx = i
+
 			break
 		}
 	}
+
 	if tabIdx < 0 {
 		return // Already handled
 	}
@@ -456,6 +468,7 @@ func (a *App) handleEditorExited(msg editorExited) {
 			a.currentTab = tabIdx + 1
 			a.updateTabFocus()
 		}
+
 		return
 	}
 
@@ -465,6 +478,7 @@ func (a *App) handleEditorExited(msg editorExited) {
 			a.setError("Failed to save editor changes: " + err.Error())
 		}
 	}
+
 	a.closeEditorTab(tabIdx)
 }
 
@@ -481,11 +495,12 @@ func (a *App) closeEditorTab(idx int) {
 	a.editorTabs = append(a.editorTabs[:idx], a.editorTabs[idx+1:]...)
 
 	// Adjust current tab
-	if len(a.editorTabs) == 0 {
+	switch {
+	case len(a.editorTabs) == 0:
 		a.currentTab = 0
-	} else if a.currentTab > idx+1 {
+	case a.currentTab > idx+1:
 		a.currentTab--
-	} else if a.currentTab > len(a.editorTabs) {
+	case a.currentTab > len(a.editorTabs):
 		a.currentTab = len(a.editorTabs)
 	}
 

@@ -34,6 +34,7 @@ func (a *App) drawTabSeparator(win vaxis.Window, x int) int {
 		Character: vaxis.Character{Grapheme: "│", Width: 1},
 		Style:     tabSepStyle,
 	})
+
 	return 1
 }
 
@@ -48,5 +49,6 @@ func (a *App) drawTabItem(win vaxis.Window, x int, label string, active bool) in
 	text := fmt.Sprintf(" %s  ", label)
 	item := win.New(x, 0, len(text), 1)
 	item.PrintTruncate(0, vaxis.Segment{Text: text, Style: style})
+
 	return len(text)
 }

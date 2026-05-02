@@ -1,0 +1,25 @@
+version: 2
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - gocritic
+    - gocyclo
+    - dupl
+    - funlen
+    - wsl_v5
+    - funcorder
+    - copyloopvar
+    - intrange
+    - nilnil
+    - nlreturn
+    - prealloc
+    - interfacebloat
+    - iotamixing
+    - lll
+    - maintidx
+    - modernize
+    - predeclared
+    - nestif

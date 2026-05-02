@@ -19,6 +19,7 @@ func DrawList(win vaxis.Window, summaries []buffer.BufferSummary, cursor, listOf
 			Text:  "No buffers. Press 'n' to create one.",
 			Style: emptyStyle,
 		})
+
 		return
 	}
 
@@ -28,30 +29,24 @@ func DrawList(win vaxis.Window, summaries []buffer.BufferSummary, cursor, listOf
 		Style: headerStyle,
 	})
 
-	maxEntries := contentH - 1
-	if maxEntries < 0 {
-		maxEntries = 0
-	}
+	maxEntries := max(contentH-1, 0)
 
 	// Truncate preview to available width minus the header prefix width
 	// Header prefix: "#NNNNN  MMMMM  " — use 16 chars approximation
-	availWidth := w - 16
-	if availWidth < 10 {
-		availWidth = 10
-	}
+	availWidth := max(w-16, 10)
 
-	end := listOff + maxEntries
-	if end > len(summaries) {
-		end = len(summaries)
-	}
+	end := min(listOff+maxEntries, len(summaries))
 
 	row := 1
+
 	for i := listOff; i < end; i++ {
 		s := summaries[i]
+
 		preview := s.Preview
 		if preview == "" {
 			preview = "(empty)"
 		}
+
 		if len(preview) > availWidth {
 			preview = preview[:availWidth]
 		}
@@ -78,6 +73,7 @@ func displayTime(t time.Time) string {
 	if cfg.TimeFormat == config.TimeFormatAbsolute {
 		return absoluteTime(t)
 	}
+
 	return relativeTime(t)
 }
 
@@ -103,5 +99,6 @@ func absoluteTime(t time.Time) string {
 	if d < 24*time.Hour {
 		return t.Format("15:04")
 	}
+
 	return t.Format("01-02")
 }
