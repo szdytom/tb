@@ -182,10 +182,11 @@ func (c *Client) RestoreFromTrash(id int64) error {
 }
 
 // Search performs full-text search across all active buffers.
-func (c *Client) Search(query string, isRegex bool) ([]store.SearchResult, error) {
+// mode is "fuzzy", "literal", or "regex".
+func (c *Client) Search(query string, mode string) ([]store.SearchResult, error) {
 	resp, err := c.do(ipc.OpSearch, ipc.SearchPayload{
-		Query:   query,
-		IsRegex: isRegex,
+		Query: query,
+		Mode:  mode,
 	})
 	if err != nil {
 		return nil, err

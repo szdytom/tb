@@ -320,8 +320,8 @@ func TestSearchRegex(t *testing.T) {
 	sendRequest(t, conn, ipc.NewRequest(2, ipc.OpCreateBuffer, ipc.CreateBufferPayload{Content: "warning: slow"}))
 
 	resp := sendRequest(t, conn, ipc.NewRequest(10, ipc.OpSearch, ipc.SearchPayload{
-		Query:   "error.*time",
-		IsRegex: true,
+		Query: "error.*time",
+		Mode:  "regex",
 	}))
 	if !resp.Ok {
 		t.Fatalf("Search failed: %s", resp.Error)

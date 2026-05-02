@@ -15,7 +15,7 @@ func TestSearchLiteral(t *testing.T) {
 	makeBuffer(t, repo, "jumps over the lazy dog", "b", nil)
 	makeBuffer(t, repo, "nothing matches here", "c", nil)
 
-	results, err := repo.Search("quick brown", false)
+	results, err := repo.Search("quick brown", store.SearchModeLiteral)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestSearchLiteralCaseInsensitive(t *testing.T) {
 
 	makeBuffer(t, repo, "Hello World", "", nil)
 
-	results, err := repo.Search("hello", false)
+	results, err := repo.Search("hello", store.SearchModeLiteral)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestSearchLiteralMultiMatch(t *testing.T) {
 	makeBuffer(t, repo, "def ghi jkl", "", nil)
 	makeBuffer(t, repo, "ghi jkl mno", "", nil)
 
-	results, err := repo.Search("def", false)
+	results, err := repo.Search("def", store.SearchModeLiteral)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestSearchLiteralNoMatch(t *testing.T) {
 
 	makeBuffer(t, repo, "abc def", "", nil)
 
-	results, err := repo.Search("xyz", false)
+	results, err := repo.Search("xyz", store.SearchModeLiteral)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestSearchRegex(t *testing.T) {
 	makeBuffer(t, repo, "warning: low memory", "", nil)
 	makeBuffer(t, repo, "error: something else", "", nil)
 
-	results, err := repo.Search("error.*time", true)
+	results, err := repo.Search("error.*time", store.SearchModeRegex)
 	if err != nil {
 		t.Fatalf("regex search: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestSearchRegexNoMatch(t *testing.T) {
 
 	makeBuffer(t, repo, "hello world", "", nil)
 
-	results, err := repo.Search("^xyz$", true)
+	results, err := repo.Search("^xyz$", store.SearchModeRegex)
 	if err != nil {
 		t.Fatalf("regex search: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestSearchRegexInvalid(t *testing.T) {
 
 	makeBuffer(t, repo, "hello", "", nil)
 
-	_, err := repo.Search("[invalid", true)
+	_, err := repo.Search("[invalid", store.SearchModeRegex)
 	if err == nil {
 		t.Fatal("expected error for invalid regex")
 	}
@@ -126,7 +126,7 @@ func TestSearchSnippet(t *testing.T) {
 	content := "aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk lll mmm nnn ooo ppp"
 	makeBuffer(t, repo, content, "", nil)
 
-	results, err := repo.Search("hhh", false)
+	results, err := repo.Search("hhh", store.SearchModeLiteral)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -150,12 +150,59 @@ func TestSearchIgnoresTrashed(t *testing.T) {
 	id, _ := repo.Insert(buffer.NewBuffer("searchable content", "", nil))
 	repo.SoftDelete(id, 0)
 
-	results, err := repo.Search("searchable", false)
+	results, err := repo.Search("searchable", store.SearchModeLiteral)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
 	if len(results) != 0 {
 		t.Fatalf("expected 0 results from trashed buffer, got %d", len(results))
+	}
+}
+
+func TestSearchFuzzy(t *testing.T) {
+	db := openTestDB(t)
+	repo := store.NewRepository(db)
+
+	makeBuffer(t, repo, "hello world", "", nil)
+	makeBuffer(t, repo, "something else", "", nil)
+
+	// "hld" matches "hello world" but not "something else"
+	results, err := repo.Search("hld", store.SearchModeFuzzy)
+	if err != nil {
+		t.Fatalf("fuzzy search: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 fuzzy match, got %d", len(results))
+	}
+}
+
+func TestSearchFuzzyCaseInsensitive(t *testing.T) {
+	db := openTestDB(t)
+	repo := store.NewRepository(db)
+
+	makeBuffer(t, repo, "Hello World", "", nil)
+
+	results, err := repo.Search("hw", store.SearchModeFuzzy)
+	if err != nil {
+		t.Fatalf("fuzzy search: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 fuzzy match, got %d", len(results))
+	}
+}
+
+func TestSearchFuzzyNoMatch(t *testing.T) {
+	db := openTestDB(t)
+	repo := store.NewRepository(db)
+
+	makeBuffer(t, repo, "hello world", "", nil)
+
+	results, err := repo.Search("xyz", store.SearchModeFuzzy)
+	if err != nil {
+		t.Fatalf("fuzzy search: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected 0 fuzzy results, got %d", len(results))
 	}
 }
 

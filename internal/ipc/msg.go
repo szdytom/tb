@@ -80,8 +80,8 @@ type SoftDeletePayload struct {
 }
 
 type SearchPayload struct {
-	Query   string `json:"query"`
-	IsRegex bool   `json:"is_regex"`
+	Query string `json:"query"`
+	Mode  string `json:"mode"` // "fuzzy", "literal", or "regex"
 }
 
 // ── Response payloads ─────────────────────────────────────────────

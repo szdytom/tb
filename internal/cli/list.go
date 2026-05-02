@@ -48,7 +48,7 @@ func runList(f *listFlags) error {
 
 	// When --regex is set, use the Search operation.
 	if f.regex != "" {
-		results, err := client.Search(f.regex, true)
+		results, err := client.Search(f.regex, "regex")
 		if err != nil {
 			printError(err.Error())
 			return err

@@ -8,7 +8,6 @@ import (
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/widgets/textinput"
 	"github.com/szdytom/tb/internal/buffer"
-	"github.com/szdytom/tb/internal/ipc"
 	"github.com/szdytom/tb/internal/store"
 )
 
@@ -145,20 +144,16 @@ func (a *App) doSearch(query string, gen int) {
 		var summaries []buffer.BufferSummary
 		var err error
 
+		var results []store.SearchResult
 		if strings.HasPrefix(query, "~") {
-			var results []store.SearchResult
-			results, err = a.client.Search(query[1:], true)
-			if err == nil {
-				for _, r := range results {
-					summaries = append(summaries, buffer.NewBufferSummary(r.Buffer))
-				}
-			}
+			results, err = a.client.Search(query[1:], "regex")
 		} else {
-			summaries, err = a.client.ListBufferSummaries(ipc.ListBuffersPayload{
-				Keyword: query,
-				SortBy:  string(store.SortByUpdatedAt),
-				SortAsc: false,
-			})
+			results, err = a.client.Search(query, "fuzzy")
+		}
+		if err == nil {
+			for _, r := range results {
+				summaries = append(summaries, buffer.NewBufferSummary(r.Buffer))
+			}
 		}
 
 		if err != nil {

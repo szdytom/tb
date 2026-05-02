@@ -142,9 +142,13 @@ Full-text search across all active buffers.
 
 **Request payload:**
 ```
-{"query": "<string>", "is_regex": <bool>}
+{"query": "<string>", "mode": "<string>"}
 ```
-If `is_regex` is true, `query` is treated as a Go regular expression.
+
+`mode` can be:
+- `"fuzzy"` — character order match across gaps (case-insensitive)
+- `"literal"` — exact substring match (case-insensitive, default)
+- `"regex"` — Go regular expression
 
 **Response payload:** `[{"buffer": {<Buffer>}, "snippet": "<string>"}, ...]`
 

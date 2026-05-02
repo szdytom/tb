@@ -47,7 +47,7 @@ type Client interface {
 	CreateBuffer(content, label string, tags []string) (int64, error)
 	UpdateContent(id int64, content string) error
 	SoftDelete(id int64, ttlSeconds int) error
-	Search(query string, isRegex bool) ([]store.SearchResult, error)
+	Search(query string, mode string) ([]store.SearchResult, error)
 	Close() error
 }
 

@@ -166,7 +166,7 @@ Daemon auto-purge goroutine added as modification to `internal/daemon/daemon.go`
 **Design:**
 - `/` key enters search mode; `textinput.Model` renders in the status bar with `"/"` prompt
 - Literal search uses `ListBufferSummaries` with `Keyword` (server-side LIKE, returns `[]BufferSummary`)
-- Regex search (prefix `~`) uses `Search` endpoint with `isRegex=true`, converts to summaries
+- Fuzzy search (default) uses `Search` endpoint with `mode="fuzzy"`, converts to summaries
 - Debounce 150ms timer resets on each keystroke; generation counter discards stale results
 - `allSummaries` cached so Escape clears instantly without daemon round-trip
 - `searchGen` incremented on exit to invalidate in-flight goroutines

@@ -218,7 +218,11 @@ func (d *Daemon) handleSearch(req *ipc.Request) *ipc.Response {
 	if err := json.Unmarshal(req.Payload, &p); err != nil {
 		return ptr(ipc.ErrorResponse(req.ID, fmt.Sprintf("invalid payload: %v", err)))
 	}
-	results, err := d.repo.Search(p.Query, p.IsRegex)
+	mode := store.SearchMode(p.Mode)
+	if mode == "" {
+		mode = store.SearchModeLiteral
+	}
+	results, err := d.repo.Search(p.Query, mode)
 	if err != nil {
 		log.Printf("search: %v", err)
 		return ptr(ipc.ErrorResponse(req.ID, err.Error()))

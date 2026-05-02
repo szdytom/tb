@@ -99,7 +99,7 @@ func TestPayloadRoundTrips(t *testing.T) {
 		{"UpdateLabelPayload", ipc.UpdateLabelPayload{ID: 1, Label: "x"}},
 		{"UpdateTagsPayload", ipc.UpdateTagsPayload{ID: 1, Tags: []string{"x"}}},
 		{"SoftDeletePayload", ipc.SoftDeletePayload{ID: 1, TTLSeconds: 3600}},
-		{"SearchPayload", ipc.SearchPayload{Query: "hello", IsRegex: true}},
+		{"SearchPayload", ipc.SearchPayload{Query: "hello", Mode: "regex"}},
 		{"PingResponse", ipc.PingResponse{Message: "pong"}},
 		{"IDResponse", ipc.IDResponse{ID: 5}},
 		{"CountResponse", ipc.CountResponse{Count: 3}},
