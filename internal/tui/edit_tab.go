@@ -15,6 +15,7 @@ import (
 type EditorTab struct {
 	vt       *vterm.Model
 	BufferID int64
+	FilePath string // non-empty when editing a real file (e.g. config)
 	TmpPath  string
 	original string
 	cmd      *exec.Cmd
@@ -34,6 +35,23 @@ type EditorTab struct {
 	// Called for events from the terminal emulator (e.g. Redraw).
 	// Set by the App to forward events to the main vaxis event loop.
 	onEvent func(vaxis.Event)
+}
+
+// NewFileEditorTab creates an EditorTab that edits a real file in-place.
+// The editor runs directly on the given path — no temp file involved.
+// If the file does not exist, the editor will create it on save.
+func NewFileEditorTab(filePath, editorStr string) (*EditorTab, error) {
+	cmd := editor.BuildCmd(editorStr, filePath)
+
+	vt := vterm.New()
+	vt.TERM = "xterm-256color"
+	vt.OSC8 = true
+
+	return &EditorTab{
+		FilePath: filePath,
+		cmd:      cmd,
+		vt:       vt,
+	}, nil
 }
 
 func NewEditorTab(bufferID int64, content, editorStr string) (*EditorTab, error) {
@@ -68,11 +86,13 @@ func (et *EditorTab) Start(w, h int) {
 	et.vt.Attach(func(ev vaxis.Event) {
 		switch e := ev.(type) {
 		case vterm.EventClosed:
-			content, err := editor.ReadFile(et.TmpPath)
-			if err != nil {
-				et.ExitErr = fmt.Errorf("read temp file: %w", err)
-			} else {
-				et.ResultContent = content
+			if et.TmpPath != "" {
+				content, err := editor.ReadFile(et.TmpPath)
+				if err != nil {
+					et.ExitErr = fmt.Errorf("read temp file: %w", err)
+				} else {
+					et.ResultContent = content
+				}
 			}
 
 			if e.Error != nil {
@@ -159,9 +179,15 @@ func (et *EditorTab) Close() {
 	et.running = false
 	et.vt.Detach()
 	et.vt.Close()
-	os.Remove(et.TmpPath)
+	if et.TmpPath != "" {
+		os.Remove(et.TmpPath)
+	}
 }
 
 func (et *EditorTab) Title() string {
+	if et.FilePath != "" {
+		return " config "
+	}
+
 	return fmt.Sprintf("EDIT:#%d", et.BufferID)
 }

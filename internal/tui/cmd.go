@@ -1,8 +1,12 @@
 package tui
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"git.sr.ht/~rockorager/vaxis"
+	"github.com/szdytom/tb/internal/config"
 )
 
 // executeCommand parses and dispatches a command entered via command mode (:).
@@ -31,6 +35,8 @@ func (a *App) executeCommand(input string) {
 		a.execDelete(args)
 	case "edit", "e":
 		a.execEdit(args)
+	case "editconfig", "ec":
+		a.execEditConfig()
 	case "help", "h":
 		a.execHelp()
 	default:
@@ -102,4 +108,29 @@ func (a *App) execEdit(args []string) {
 
 func (a *App) execHelp() {
 	a.curState = stateHelp
+}
+
+func (a *App) execEditConfig() {
+	configPath := config.GetCustomConfigFile()
+	if configPath == "" {
+		configPath = filepath.Join(config.ConfigDir(), "config.toml")
+	}
+
+	tab, err := NewFileEditorTab(configPath, a.editorCmd)
+	if err != nil {
+		a.setError("Failed to open config: " + err.Error())
+		return
+	}
+
+	tabIdx := len(a.editorTabs)
+	tab.onExit = func() {
+		a.vx.PostEvent(editorExited{tab: tab, err: nil})
+	}
+	tab.onEvent = func(ev vaxis.Event) {
+		a.vx.PostEvent(ev)
+	}
+
+	a.editorTabs = append(a.editorTabs, tab)
+	a.currentTab = tabIdx + 1
+	tab.Focus()
 }

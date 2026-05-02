@@ -456,6 +456,13 @@ func (a *App) handleEditorExited(msg editorExited) {
 		return
 	}
 
+	// File tabs: editor saves in-place, just close the tab
+	if tab.FilePath != "" {
+		a.closeEditorTab(tabIdx)
+
+		return
+	}
+
 	// Check exit code
 	if tab.ExitCode != 0 && !tab.closed {
 		// Non-zero: prompt user
