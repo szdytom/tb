@@ -6,7 +6,6 @@ import (
 
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/widgets/border"
-	"git.sr.ht/~rockorager/vaxis/widgets/textinput"
 	"github.com/szdytom/tb/internal/buffer"
 	"github.com/szdytom/tb/internal/editor"
 	"github.com/szdytom/tb/internal/ipc"
@@ -31,8 +30,8 @@ type state int
 const (
 	stateLoading state = iota
 	stateBrowsing
-	stateConfirmDelete
 	stateSearch
+	stateCommand
 	stateHelp
 	stateEditorExitConfirm
 	stateQuitting
@@ -76,15 +75,15 @@ type App struct {
 
 	// Search state
 	allSummaries      []buffer.BufferSummary
-	searchInput       *textinput.Model
+	searchInput       *statusInput
 	searchQuery       string // saved after commit, shown in status bar
 	searchTimer       *time.Timer
 	searchGen         int
 	savedSearchQuery  string                 // filter that was active when search was entered
 	savedSearchFilter []buffer.BufferSummary // summaries when search was entered
 
-	// Confirm delete
-	deletingID int64
+	// Command mode
+	cmdInput *statusInput
 
 	// Preview command (e.g. "bat --color=always --style=plain")
 	previewCmd string
@@ -107,10 +106,10 @@ type App struct {
 	leaderPending bool
 
 	// Misc
-	awaitingColon bool
-	errMsg        string
-	errTimer      *time.Timer
-	quitting      bool
+	errMsg    string
+	errTimer  *time.Timer
+	quitting  bool
+	dollarReg string // $ register: stores last created buffer ID for macro expansion
 }
 
 func New(client Client, previewCmd, editorCmd string, trashTTL int) *App {
@@ -205,7 +204,7 @@ func (a *App) draw() {
 	switch a.curState {
 	case stateLoading:
 		a.drawLoading(root)
-	case stateBrowsing, stateSearch, stateConfirmDelete, stateHelp, stateEditorExitConfirm:
+	case stateBrowsing, stateSearch, stateCommand, stateHelp, stateEditorExitConfirm:
 		a.drawTabBar(root)
 
 		if a.currentTab == 0 {
@@ -270,11 +269,12 @@ func (a *App) drawMainView(root vaxis.Window) {
 	)
 
 	switch {
-	case a.curState == stateConfirmDelete:
-		text = " Delete this buffer? (y/N) "
-		style = confirmStyle
 	case a.curState == stateSearch:
 		a.drawSearchBar(statusWin)
+
+		return
+	case a.curState == stateCommand:
+		a.cmdInput.Draw(statusWin)
 
 		return
 	case a.errMsg != "":
@@ -283,7 +283,7 @@ func (a *App) drawMainView(root vaxis.Window) {
 	case a.searchQuery != "":
 		text = a.searchStatusText()
 	default:
-		text = " j/k:navigate  n:new  d:delete  ?:help  :q:quit "
+		text = " j/k:navigate  n:new  d:delete  ?:help  ::command "
 	}
 
 	statusWin.PrintTruncate(0, vaxis.Segment{Text: text, Style: style})
@@ -401,14 +401,8 @@ func (a *App) updateTabFocus() {
 
 // ── Editor lifecycle ──────────────────────────────────────────────────────
 
-// startEditorAsync fetches the current buffer content and creates an editor tab.
-func (a *App) startEditorAsync() {
-	if len(a.summaries) == 0 {
-		return
-	}
-
-	id := a.summaries[a.cursor].ID
-
+// startEditorAsync fetches buffer content by ID and creates an editor tab.
+func (a *App) startEditorAsync(id int64) {
 	// Switch to existing tab if already open for this buffer
 	for i, tab := range a.editorTabs {
 		if tab.BufferID == id {

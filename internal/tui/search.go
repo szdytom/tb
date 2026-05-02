@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"git.sr.ht/~rockorager/vaxis"
-	"git.sr.ht/~rockorager/vaxis/widgets/textinput"
 	"github.com/szdytom/tb/internal/buffer"
 	"github.com/szdytom/tb/internal/store"
 )
@@ -20,8 +19,7 @@ type searchResult struct {
 
 func (a *App) enterSearch() {
 	a.searchGen = 0
-	a.searchInput = textinput.New()
-	a.searchInput.SetPrompt("/")
+	a.searchInput = newStatusInput("/")
 	// Save pre-search state so Escape can restore it.
 	a.savedSearchQuery = a.searchQuery
 	a.savedSearchFilter = append([]buffer.BufferSummary{}, a.summaries...)
@@ -186,39 +184,19 @@ func (a *App) doSearch(query string, gen int) {
 }
 
 func (a *App) handleKeySearch(ev vaxis.Key) {
-	switch {
-	case ev.Matches(vaxis.KeyEsc):
+	action, val := a.searchInput.HandleKey(ev)
+
+	switch action {
+	case inputCancel:
 		a.exitSearch()
 
 		return
-	case ev.Matches(vaxis.KeyEnter):
+	case inputCommit:
 		a.commitSearch()
 
 		return
-	case ev.Matches('c', vaxis.ModCtrl):
-		a.exitSearch()
-
-		return
-	}
-
-	if a.searchInput == nil {
-		return
-	}
-
-	// Backspace on empty query → exit search mode
-	s := ev.String()
-	if a.searchInput.String() == "" && (s == "BackSpace" || s == "Ctrl+h") {
-		a.exitSearch()
-
-		return
-	}
-
-	oldQuery := a.searchInput.String()
-	a.searchInput.Update(ev)
-
-	newQuery := a.searchInput.String()
-	if newQuery != oldQuery {
-		if newQuery == "" {
+	case inputChanged:
+		if val == "" {
 			a.summaries = a.allSummaries
 			if a.searchTimer != nil {
 				a.searchTimer.Stop()

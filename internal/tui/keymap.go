@@ -42,8 +42,6 @@ func classifyKey(ev vaxis.Key) keyAction {
 		return keyNew
 	case "d":
 		return keyDelete
-	case "q":
-		return keyQuit
 	case "?":
 		return keyHelp
 	case "y", "Y":

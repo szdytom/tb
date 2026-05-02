@@ -75,9 +75,12 @@ func (a *App) handleEvent(ev vaxis.Event) {
 	case vaxis.Redraw:
 		// Triggered after SyncFunc; state already updated, just re-draw
 	case vaxis.PasteEndEvent:
-		if a.curState == stateSearch && a.searchInput != nil {
+		switch {
+		case a.curState == stateSearch && a.searchInput != nil:
 			a.searchInput.Update(ev)
 			a.searchDebounced()
+		case a.curState == stateCommand && a.cmdInput != nil:
+			a.cmdInput.Update(ev)
 		}
 	}
 }
@@ -92,7 +95,7 @@ func (a *App) handleResize(ev vaxis.Resize) {
 
 func (a *App) handleMouse(ev vaxis.Mouse) {
 	// Tab bar click (row 0)
-	if ev.Row == 0 && (a.curState == stateBrowsing || a.curState == stateHelp) {
+	if ev.Row == 0 && (a.curState == stateBrowsing || a.curState == stateCommand || a.curState == stateHelp) {
 		if tabIdx := a.tabAtX(ev.Col); tabIdx >= 0 {
 			a.currentTab = tabIdx
 			a.updateTabFocus()
@@ -168,21 +171,6 @@ func (a *App) handleLeaderKey(ev vaxis.Key) bool {
 }
 
 func (a *App) handleKey(ev vaxis.Key) {
-	if a.awaitingColon && a.currentTab == 0 {
-		a.awaitingColon = false
-		if ev.String() == "q" {
-			// Close all editor tabs before quitting
-			for _, tab := range a.editorTabs {
-				tab.Close()
-			}
-
-			a.editorTabs = nil
-			a.quitting = true
-		}
-
-		return
-	}
-
 	// Leader key works from both list and editor tabs
 	if a.handleLeaderKey(ev) {
 		return
@@ -200,8 +188,8 @@ func (a *App) handleKey(ev vaxis.Key) {
 		a.handleKeyBrowsing(ev)
 	case stateSearch:
 		a.handleKeySearch(ev)
-	case stateConfirmDelete:
-		a.handleKeyConfirmDelete(ev)
+	case stateCommand:
+		a.handleKeyCommand(ev)
 	case stateEditorExitConfirm:
 		a.handleKeyEditorExitConfirm(ev)
 	case stateHelp:
@@ -213,7 +201,7 @@ func (a *App) handleKey(ev vaxis.Key) {
 
 func (a *App) handleKeyBrowsing(ev vaxis.Key) {
 	if ev.String() == ":" {
-		a.awaitingColon = true
+		a.enterCommand()
 
 		return
 	}
@@ -243,13 +231,14 @@ func (a *App) handleKeyBrowsing(ev vaxis.Key) {
 		a.listOff = max(a.cursor-a.contentH+3, 0)
 		a.loadPreviewAsync()
 	case keyEnter:
-		a.startEditorAsync()
+		if len(a.summaries) > 0 {
+			a.startEditorAsync(a.summaries[a.cursor].ID)
+		}
 	case keyNew:
 		a.createBufferAsync()
 	case keyDelete:
 		if len(a.summaries) > 0 {
-			a.deletingID = a.summaries[a.cursor].ID
-			a.curState = stateConfirmDelete
+			a.deleteBufferAsync(a.summaries[a.cursor].ID)
 		}
 	case keyHelp:
 		a.curState = stateHelp
@@ -260,14 +249,24 @@ func (a *App) handleKeyBrowsing(ev vaxis.Key) {
 	}
 }
 
-func (a *App) handleKeyConfirmDelete(ev vaxis.Key) {
-	switch classifyKey(ev) {
-	case keyConfirm:
+func (a *App) enterCommand() {
+	a.cmdInput = newStatusInput(":")
+	a.curState = stateCommand
+}
+
+func (a *App) handleKeyCommand(ev vaxis.Key) {
+	action, val := a.cmdInput.HandleKey(ev)
+
+	switch action {
+	case inputCancel:
+		a.cmdInput = nil
 		a.curState = stateBrowsing
-		a.deleteBufferAsync(a.deletingID)
-	case keyDeny:
+		a.vx.HideCursor()
+	case inputCommit:
+		a.cmdInput = nil
 		a.curState = stateBrowsing
-		a.deletingID = 0
+		a.vx.HideCursor()
+		a.executeCommand(val)
 	}
 }
 
@@ -332,6 +331,7 @@ func (a *App) handleBufferCreated(msg bufferCreated) {
 
 	if msg.summary != nil {
 		summary := *msg.summary
+		a.dollarReg = fmt.Sprintf("%d", summary.ID)
 
 		a.allSummaries = append([]buffer.BufferSummary{summary}, a.allSummaries...)
 		if a.curState == stateSearch {
@@ -380,7 +380,6 @@ func (a *App) handleBufferDeleted(msg bufferDeleted) {
 		}
 	}
 
-	a.deletingID = 0
 	if len(a.summaries) > 0 {
 		a.loadPreviewAsync()
 	}
